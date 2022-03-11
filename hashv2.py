@@ -1,4 +1,3 @@
-import os, pickle
 from types import FunctionType
 from hashv1 import Master, Account
 import hashv1
@@ -59,7 +58,7 @@ class Manager:
     while len(self.stateStack) > leftover + 1:
       self.popStack()
 
-  def main(self):
+  def run(self):
     while len(self.stateStack) > 0:
       self.readStack()
     printn('Closing Manager')
@@ -158,17 +157,6 @@ class Option:
     return self.functionObj()
 
 ### UTIL Functions
-
-def saveMasterFile(master):
-  master.sortAlphaNumeric()
-  with open(hashv1.MASTER_FILE_NAME, 'wb') as outFile:
-    pickle.dump(master, outFile, pickle.HIGHEST_PROTOCOL)
-  print('Data saved')
-
-def funcWrap(inputFunc, *args):
-  def outputFunc():
-    return inputFunc(args)
-  return outputFunc
 
 # returns a function object that returns the next state
 def fog_nextState(nextstate, accountFocused=None):
@@ -347,22 +335,11 @@ if __name__ == '__main__':
   # Init Options and States
   print('Hashv2 running...')
 
-  # Init Data:
-  # check if previous dump file exists
-  if os.path.isfile(hashv1.MASTER_FILE_NAME):
-    with open(hashv1.MASTER_FILE_NAME, 'rb') as inFile:
-      master = pickle.load(inFile)
-      master.sortAlphaNumeric()
-      print(f'Master file {hashv1.MASTER_FILE_NAME} with {master.numAccounts()} accounts found')
-  else:
-    master = hashv1.Master()
-    print(f'New master file {hashv1.MASTER_FILE_NAME} created')
-
+  master = Master()
+  master.load()
 
   manager = Manager()
   manager.initialization()
-  # Run Manager
-  manager.main()
+  manager.run()
 
-  # Save Data:
-  saveMasterFile(master)
+  master.save()

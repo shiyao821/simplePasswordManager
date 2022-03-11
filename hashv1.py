@@ -1,42 +1,42 @@
 import os
-import pickle
+import json
 import copy
 
 ### this version is to be used together with hashv2.py
 # It is repurposed to serve as the data module, abstracts away data operations and removes UX operations
 
-### TODO:
-# currently the info stored are index pointer based. FK
-# I thought this would be cool and greatly accelerate referencing
-# But this means that there is no way of removing items within the lists without large amounts of work
-# to change the info stored to HARD TEXT
-
 # Init and counters
 MASTER_FILE_NAME = 'acc.pkl'
+MASTER_JSON_NAME = 'acc.json'
 master = None
 
 class Master():
-  def __init__(self):
+  def __init__(self, accountList=[], emailList=[], usernameList=[], passwordList=[], linkedAccountList=[]):
     # the following list should be unique at all times.
     # current update operations: see def updateLists
-    self.emailList = []
-    self.passwordList = []
-    self.accountList = []
-    self.usernameList = []
-    self.linkedAccountList = [] # entries will be the string in Account.name
+    self.accountList = accountList
+    self.usernameList = usernameList
+    self.emailList = emailList
+    self.passwordList = passwordList
+    self.linkedAccountList = linkedAccountList # entries will be the string in Account.name
 
   # load data from some file in same directory
   def load(self):
-    pass
+    with open(MASTER_JSON_NAME, 'r') as inJson:
+      while json_string := inJson.readline():
+        acc = Account(**json.loads(json_string))
+        self.accountList.append(acc)
+    return self
 
   # save data to file
   def save(self):
     self.sortAlphaNumeric()
     self.updateLists()
-    with open(MASTER_FILE_NAME, 'wb') as outFile:
-      pickle.dump(master, outFile, pickle.HIGHEST_PROTOCOL)
-      print('changes saved')
-    
+    with open(MASTER_JSON_NAME, 'w') as outJson:
+      for acc in self.accountList:
+        json_string = json.dumps(acc.__dict__)
+        outJson.write(json_string + '\n')
+        
   # returns number of accounts in data
   def numAccounts(self):
     return len(self.accountList)
@@ -45,15 +45,6 @@ class Master():
   def sortAlphaNumeric(self, reverse=False):
     self.accountList.sort(key=lambda a: a.name, reverse=reverse)
 
-  # returns correct number pointer in given list after updating list with input text if necessary
-  def getNumPointer(self, acclist, text):
-    try:
-      pointer = acclist.index(text)
-    except ValueError:
-      acclist.append(text)
-      pointer = len(acclist) - 1
-    return pointer
-    
   # returns a list of Accounts containing keyword. 
   # If keyword is a single letter, checks only for first letter
   # If keyword is blank, return all. Can return empty list.
@@ -86,7 +77,7 @@ class Master():
   # given an Account, delete it from the database
   def deleteAccount(self, account):
     accountName = copy.copy(account.name)
-    if prompt(f'Are you sure you want to delete the account for {accountName}'):
+    if confirmPrompt(f'Are you sure you want to delete the account for {accountName}'):
       # search for account in the actual list
       for acc in self.accountList:
         if acc == account:
@@ -151,25 +142,20 @@ class Master():
         self.linkedAccountList.append(acc.linkedAccount)
 
 class Account():
-  def __init__(self):
-    self.name = ''
-    self.username = ''
-    self.email = ''
-    self.password = ''
-    self.linkedAccount = ''
-    self.misc = {} # TODO: convert to dict
+  def __init__(self, name='', username='', email='', password='', linkedAccount='', misc={}):
+    self.name = name
+    self.username = username
+    self.email = email
+    self.password = password
+    self.linkedAccount = linkedAccount
+    self.misc = misc # TODO: convert to dict
 
-
-def prompt(question):
+def confirmPrompt(question):
   print(question, end=' (1 = YES \\ enter = NO) ')
   i = input()
   return i == '1'
 
-# return a subset string list filtering by first letter of string
-def sublist(list, letter):
-  return filter(lambda e: e[0] == letter.upper() or e[0] == letter.lower(), list)
-
-def viewAllData():
+def dataScript():
   with open('allData.txt', 'w') as f:
     # for i in master.usernameList:
     #   print(i)
@@ -198,70 +184,28 @@ def viewAllData():
       # if not isinstance(account.linkedAccount, int):
       #   master.editLinkedAccount(account, account.linkedAccount)
 
-def numberInput(string):
-  text = input(string)
-  if text.isdigit():
-    return int(text)
-  else:
-    print(f'Invalid input: {text}')
-    return -1
-
-def deleteAccounts():
-  if prompt('List Accounts?'):
-    master.listAccounts()
-  index = numberInput('Enter index number of acount to delete: ')
-  master.deleteAccount(index - 1)
-
-def saveMasterFile(master):
-  master.sortAlphaNumeric()
-  with open(MASTER_FILE_NAME, 'wb') as outFile:
-    pickle.dump(master, outFile, pickle.HIGHEST_PROTOCOL)
-
 if __name__ == '__main__':
 
+  master = Master()
   # check if previous dump file exists
   if os.path.isfile(MASTER_FILE_NAME):
     with open(MASTER_FILE_NAME, 'rb') as inFile:
-      master = pickle.load(inFile)
-      master.sortAlphaNumeric()
-      print(f'Master file {MASTER_FILE_NAME} with {master.numAccounts()} accounts found')
+      master.load()  
   else:
-    master = Master()
     print(f'New master file {MASTER_FILE_NAME} created')
 
   while True:
     command = input('\
-      What to do?\n\
-      1. view accounts\n\
-      2. add account\n\
-      3. transfer accounts\n\
-      4. delete account entry\n\
-      5. edit account entry\n\
-      `. exit\n\
-      (1\\2\\3\\...): ')
-    if command == '1':
-      if prompt('List Accounts?'):
-        master.listAccounts()
-      index = numberInput('Enter index number to show acc details: ')
-      master.viewAccount(index - 1)
-    elif command == '2':
-      temp = input('Any misc information: ')
-      master.addAccount(temp)
-    elif command == '3':
-      viewAllData()
-    elif command == '4':
-      deleteAccounts()
-    elif command == '5':
-      if prompt('List Accounts?'):
-        master.listAccounts()
-      index = numberInput('Enter index of account to edit: ')
-      master.editAccount(index - 1)
-    elif command == '`':
+      Proceed with Script?\n\
+      (1 for yes): ')
+    if command == 'y':
+      dataScript()
+      print('script completed')
       break
     else:
-      print('didn\'t understand input')
+      print('bye')
 
     # save at the end of 1 operation
-    saveMasterFile(master)
+    master.save()
   
-  saveMasterFile(master)
+  master.save()
