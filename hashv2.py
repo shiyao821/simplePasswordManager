@@ -1,6 +1,7 @@
 from types import FunctionType
-from hashv1 import Master, Account
-import hashv1
+
+from sqlalchemy import outparam
+from hashv1 import Database, Account
 
 ### High level view:
 # States are used to facilitate going 'back' to the previous step. User input = '`'
@@ -18,7 +19,7 @@ import hashv1
 # 2) function object that can be called to execute. 
 # - This includes functions that manipulate the state stack / start other processes
 # NOTE: currently built assuming it is ok to have function objects 
-# directly calling master data object from within
+# directly calling data data object from within
 
 ### Notation:
 # st_ prefixes are states
@@ -70,25 +71,20 @@ class Manager:
     manager.pushStack(st_home)
     
     st_addAccount = State('Adding new account')
-    st_deleteAccount = State('deleting account')
+    st_addAccount.addOption(Option('Account name: ', fo_addAccount))
+    st_deleteAccount = State('Deleting account')
     st_searchByName = State('Search Accounts by Name')
     
-    opt_searchByName = Option('Search Accounts by Name', fog_nextState(st_searchByName))
-    opt_searchByEmail = Option('Search Accounts by Email', fo_getEmailList)
-    opt_searchByUsername = Option('Search Accounts by Username', fo_getUsernameList)
-    opt_searchByPassword = Option('Search Accounts by Password', fo_getPasswordList)
-    opt_searchByLinkedAccount = Option('Search Accounts by Linked Account', fo_getLinkedAccountList)
-
-    st_home.addOption(opt_searchByName)
-    st_home.addOption(opt_searchByEmail)
-    st_home.addOption(opt_searchByUsername)
-    st_home.addOption(opt_searchByPassword)
-    st_home.addOption(opt_searchByLinkedAccount)
+    st_home.addOption(Option('Search Accounts by Name', fog_nextState(st_searchByName)))
+    st_home.addOption(Option('Search Accounts by Email', fo_getEmailList))
+    st_home.addOption(Option('Search Accounts by Username', fo_getUsernameList))
+    st_home.addOption(Option('Search Accounts by Password', fo_getPasswordList))
+    st_home.addOption(Option('Search Accounts by Linked Account', fo_getLinkedAccountList))
+    st_home.addOption(Option('Add New Account', fog_nextState(st_addAccount)))
+    st_home.addOption(Option('Delete Account Entry', fog_nextState(st_deleteAccount)))
 
     opt_inputKeyword = Option('Enter keyword to search:', fo_searchByName)
     st_searchByName.addOption(opt_inputKeyword)
-
-
 
 
 class State:
@@ -178,10 +174,10 @@ def fo_home():
 
 ### processes (interacts with Data)
 
-# function object that requests for keyword input to filter master data
+# function object that requests for keyword input to filter data data
 # returns next state containing list of accounts filtered
 def fo_searchByName(text):
-  accountList = master.filterAccountsByName(text)
+  accountList = data.filterAccountsByName(text)
   st_filtered = State(f'There are {len(accountList)} matches')
   for acc in accountList:
     st_filtered.addOption(Option(acc.name, fog_focusAccount(acc), textInput=False))
@@ -190,7 +186,7 @@ def fo_searchByName(text):
 # returns next state containing list of accounts filtered by email
 def fog_getAccountsWithEmail(email):
   def outputfunc():
-    accountList = master.filterAccountsByEmail(email)
+    accountList = data.filterAccountsByEmail(email)
     st_filtered = State(f'There are {len(accountList)} matches')
     for acc in accountList:
       st_filtered.addOption(Option(acc.name, fog_focusAccount(acc), textInput=False))
@@ -200,7 +196,7 @@ def fog_getAccountsWithEmail(email):
 # function object that shows all emails used in accounts
 def fo_getEmailList():
   st_emailList = State('Emails:')
-  for email in master.emailList:
+  for email in data.emailList:
     st_emailList.addOption(Option(email, fog_getAccountsWithEmail(email), textInput=False))
   return st_emailList
 
@@ -208,7 +204,7 @@ def fo_getEmailList():
 # returns next state containing list of accounts filtered by username
 def fog_getAccountsWithUsername(username):
   def outputfunc():
-    accountList = master.filterAccountsByUsername(username)
+    accountList = data.filterAccountsByUsername(username)
     st_filtered = State(f'There are {len(accountList)} matches')
     for acc in accountList:
       st_filtered.addOption(Option(acc.name, fog_focusAccount(acc), textInput=False))
@@ -218,14 +214,14 @@ def fog_getAccountsWithUsername(username):
 # function object that shows all usernames used in accounts
 def fo_getUsernameList():
   st_usernameList = State('Usernames:')
-  for i in master.usernameList:
+  for i in data.usernameList:
     st_usernameList.addOption(Option(i, fog_getAccountsWithUsername(i), textInput=False))
   return st_usernameList
 
 # returns next state containing list of accounts filtered by password
 def fog_getAccountsWithPassword(password):
   def outputfunc():
-    accountList = master.filterAccountsByPassword(password)
+    accountList = data.filterAccountsByPassword(password)
     st_filtered = State(f'There are {len(accountList)} matches')
     for acc in accountList:
       st_filtered.addOption(Option(acc.name, fog_focusAccount(acc), textInput=False))
@@ -235,7 +231,7 @@ def fog_getAccountsWithPassword(password):
 # function object that shows all passwords used in accounts
 def fo_getPasswordList():
   st_passwordList = State('Passwords:')
-  for i in master.passwordList:
+  for i in data.passwordList:
     st_passwordList.addOption(Option(i, fog_getAccountsWithPassword(i), textInput=False))
   return st_passwordList
 
@@ -243,7 +239,7 @@ def fo_getPasswordList():
 # returns next state containing list of accounts filtered by name of linked account
 def fog_getAccountsWithLinkedAccount(name):
   def outputfunc():
-    accountList = master.filterAccountsByLinkedAccount(name)
+    accountList = data.filterAccountsByLinkedAccount(name)
     st_filtered = State(f'There are {len(accountList)} matches')
     for acc in accountList:
       st_filtered.addOption(Option(acc.name, fog_focusAccount(acc), textInput=False))
@@ -253,41 +249,39 @@ def fog_getAccountsWithLinkedAccount(name):
 # function object that shows all linked accounts used in accounts
 def fo_getLinkedAccountList():
   st_linkedAccountList = State('Linked Accounts:')
-  for i in master.linkedAccountList:
+  for i in data.linkedAccountList:
     st_linkedAccountList.addOption(Option(i, fog_getAccountsWithLinkedAccount(i), textInput=False))
   return st_linkedAccountList
-
-
 
 # returns function object that calls data functions to change 
 # the selected field of given account
 def fog_editName(account):
   def outputfunc(text):
-    updatedAccount = master.editName(account, text)
+    updatedAccount = data.editName(account, text)
     manager.popStack(2)
     return fog_focusAccount(updatedAccount)()
   return outputfunc
 def fog_editEmail(account):
   def outputfunc(text):
-    updatedAccount = master.editEmail(account, text)
+    updatedAccount = data.editEmail(account, text)
     manager.popStack(2)
     return fog_focusAccount(updatedAccount)()
   return outputfunc
 def fog_editUsername(account):
   def outputfunc(text):
-    updatedAccount = master.editUsername(account, text)
+    updatedAccount = data.editUsername(account, text)
     manager.popStack(2)
     return fog_focusAccount(updatedAccount)()
   return outputfunc
 def fog_editPassword(account):
   def outputfunc(text):
-    updatedAccount = master.editPassword(account, text)
+    updatedAccount = data.editPassword(account, text)
     manager.popStack(2)
     return fog_focusAccount(updatedAccount)()
   return outputfunc
 def fog_editLinkedAccount(account):
   def outputfunc(text):
-    updatedAccount = master.editLinkedAccount(account, text)
+    updatedAccount = data.editLinkedAccount(account, text)
     manager.popStack(2)
     return fog_focusAccount(updatedAccount)()
   return outputfunc
@@ -316,16 +310,35 @@ def fog_focusAccount(account):
     st_editPassword.addOption(Option("New account password: ", fog_editPassword(account)))
     st_editLinkeAccounts = State(f'Old account linked: {account.linkedAccount}')
     st_editLinkeAccounts.addOption(Option("New account linked: ", fog_editLinkedAccount(account)))
+    st_deleteConfirmation = State(f'Are you sure you want to delete the account for {account.name}')
+    st_deleteConfirmation.addOption(Option('1 = YES \\ enter = NO: ', fog_deleteAccount(account)))
 
     st_viewAccount.addOption(Option('Edit Name', fog_nextState(st_editName)))
     st_viewAccount.addOption(Option('Edit Username', fog_nextState(st_editUsername)))
     st_viewAccount.addOption(Option('Edit Email', fog_nextState(st_editEmail)))
     st_viewAccount.addOption(Option('Edit Password', fog_nextState(st_editPassword)))
     st_viewAccount.addOption(Option('Edit LinkedAccounts', fog_nextState(st_editLinkeAccounts)))
+    st_viewAccount.addOption(Option('Delete Account', fog_nextState(st_deleteConfirmation)))
     st_viewAccount.addOption(Option('Exit', fo_home))
     return st_viewAccount
   return outputfunc
 
+# function object that adds an account with input name to database,
+# returns with a state focusing on data. input name must not previously exist
+def fo_addAccount(text):
+  if not data.checkNameExists(text):
+    acc = data.addAccount(Account(name=text))
+    return fog_focusAccount(acc)()
+  else:
+    print(f'Account with name "{text}" already exists')
+
+# returns a function object that takes 1 as input confirmation to delete selected acc
+def fog_deleteAccount(acc):
+  def outputfunc(input):
+    if input == '1':
+      data.deleteAccount(acc)
+      fo_home()
+  return outputfunc
 
 ### end of processes
 
@@ -335,11 +348,11 @@ if __name__ == '__main__':
   # Init Options and States
   print('Hashv2 running...')
 
-  master = Master()
-  master.load()
+  data = Database()
+  data.load()
 
   manager = Manager()
   manager.initialization()
   manager.run()
 
-  master.save()
+  data.save()

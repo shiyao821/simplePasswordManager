@@ -10,7 +10,7 @@ MASTER_FILE_NAME = 'acc.pkl'
 MASTER_JSON_NAME = 'acc.json'
 master = None
 
-class Master():
+class Database():
   def __init__(self, accountList=[], emailList=[], usernameList=[], passwordList=[], linkedAccountList=[]):
     # the following list should be unique at all times.
     # current update operations: see def updateLists
@@ -77,19 +77,22 @@ class Master():
   # given an Account, delete it from the database
   def deleteAccount(self, account):
     accountName = copy.copy(account.name)
-    if confirmPrompt(f'Are you sure you want to delete the account for {accountName}'):
-      # search for account in the actual list
-      for acc in self.accountList:
-        if acc == account:
-          self.accountList.remove(acc)
-          del acc
-          print(f'Account for {accountName} deleted')
-          break
+    # search for account in the actual list
+    for acc in self.accountList:
+      if acc == account:
+        self.accountList.remove(acc)
+        del acc
+        print(f'Account for {accountName} deleted')
+        break
+
+  # check if account name exists
+  def checkNameExists(self, name):
+    return name in [acc.name for acc in self.accountList]
 
   # given an Account, returns Account edited
   def editName(self, account, text):
     # check uniqueness
-    if text not in [acc.name for acc in self.accountList]:
+    if self.checkNameExists(text):
       self.accountList.remove(account.name)
       account.name = text
     print(f'Input name {text} already exists')
@@ -142,18 +145,13 @@ class Master():
         self.linkedAccountList.append(acc.linkedAccount)
 
 class Account():
-  def __init__(self, name='', username='', email='', password='', linkedAccount='', misc={}):
+  def __init__(self, name='', username='', email='', password='', linkedAccount='', misc=[]):
     self.name = name
     self.username = username
     self.email = email
     self.password = password
     self.linkedAccount = linkedAccount
     self.misc = misc # TODO: convert to dict
-
-def confirmPrompt(question):
-  print(question, end=' (1 = YES \\ enter = NO) ')
-  i = input()
-  return i == '1'
 
 def dataScript():
   with open('allData.txt', 'w') as f:
@@ -186,7 +184,7 @@ def dataScript():
 
 if __name__ == '__main__':
 
-  master = Master()
+  master = Database()
   # check if previous dump file exists
   if os.path.isfile(MASTER_FILE_NAME):
     with open(MASTER_FILE_NAME, 'rb') as inFile:
