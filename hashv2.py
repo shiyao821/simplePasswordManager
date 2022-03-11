@@ -28,6 +28,9 @@ import hashv1
 
 class Manager:
 
+  columnCharWidth = 25
+  totalColumns = 4
+
   def __init__(self) -> None:
     self.stateStack = []
 
@@ -40,8 +43,9 @@ class Manager:
     self.stateStack.append(newState)
 
   # pops stack and returns popped
-  def popStack(self):
-    return self.stateStack.pop()
+  def popStack(self, num=1):
+    for i in range(0, num):
+      self.stateStack.pop()
 
   def readStack(self):
     returnedState = self.viewStack().readState()
@@ -114,6 +118,9 @@ class State:
           manager.flushStack()
           return
         return self.options[0].execute(text)
+      # 1 Option, but not for text input -> fast forward to selection
+      # pop stack for double jump back
+      manager.popStack()
       return self.options[0].execute()
     # Choice input states
     else:
@@ -135,8 +142,7 @@ class State:
         return
       else:
         print(f'Invalid input: {text}')
-        return -1
-
+      
 
 class Option:
   def __init__(self, message, functionObj, textInput=True) -> None:
@@ -207,7 +213,7 @@ def fog_getAccountsWithEmail(email):
 def fo_getEmailList():
   st_emailList = State('Emails:')
   for email in master.emailList:
-    st_emailList.addOption(Option(email, fog_getAccountsWithEmail(email)))
+    st_emailList.addOption(Option(email, fog_getAccountsWithEmail(email), textInput=False))
   return st_emailList
 
 
@@ -225,7 +231,7 @@ def fog_getAccountsWithUsername(username):
 def fo_getUsernameList():
   st_usernameList = State('Usernames:')
   for i in master.usernameList:
-    st_usernameList.addOption(Option(i, fog_getAccountsWithUsername(i)))
+    st_usernameList.addOption(Option(i, fog_getAccountsWithUsername(i), textInput=False))
   return st_usernameList
 
 # returns next state containing list of accounts filtered by password
@@ -242,7 +248,7 @@ def fog_getAccountsWithPassword(password):
 def fo_getPasswordList():
   st_passwordList = State('Passwords:')
   for i in master.passwordList:
-    st_passwordList.addOption(Option(i, fog_getAccountsWithPassword(i)))
+    st_passwordList.addOption(Option(i, fog_getAccountsWithPassword(i), textInput=False))
   return st_passwordList
 
 
@@ -260,7 +266,7 @@ def fog_getAccountsWithLinkedAccount(name):
 def fo_getLinkedAccountList():
   st_linkedAccountList = State('Linked Accounts:')
   for i in master.linkedAccountList:
-    st_linkedAccountList.addOption(Option(i, fog_getAccountsWithLinkedAccount(i)))
+    st_linkedAccountList.addOption(Option(i, fog_getAccountsWithLinkedAccount(i), textInput=False))
   return st_linkedAccountList
 
 
@@ -269,67 +275,69 @@ def fo_getLinkedAccountList():
 # the selected field of given account
 def fog_editName(account):
   def outputfunc(text):
-    master.editName(account, text)
+    updatedAccount = master.editName(account, text)
+    manager.popStack(2)
+    return fog_focusAccount(updatedAccount)()
   return outputfunc
 def fog_editEmail(account):
   def outputfunc(text):
-    master.editEmail(account, text)
+    updatedAccount = master.editEmail(account, text)
+    manager.popStack(2)
+    return fog_focusAccount(updatedAccount)()
   return outputfunc
 def fog_editUsername(account):
   def outputfunc(text):
-    master.editUsername(account, text)
+    updatedAccount = master.editUsername(account, text)
+    manager.popStack(2)
+    return fog_focusAccount(updatedAccount)()
   return outputfunc
 def fog_editPassword(account):
   def outputfunc(text):
-    master.editPassword(account, text)
+    updatedAccount = master.editPassword(account, text)
+    manager.popStack(2)
+    return fog_focusAccount(updatedAccount)()
   return outputfunc
 def fog_editLinkedAccount(account):
   def outputfunc(text):
-    master.editLinkedAccount(account, text)
+    updatedAccount = master.editLinkedAccount(account, text)
+    manager.popStack(2)
+    return fog_focusAccount(updatedAccount)()
   return outputfunc
 
 def stringifyAccount(account):
   return \
     f'Account   : {account.name}\n'+ \
-    f'username  : {master.usernameList[account.username]}\n' + \
-    f'email     : {master.emailList[account.email]}\n' + \
-    f'password  : {master.passwordList[account.password]}\n' + \
-    f'linked Acc: {master.linkedAccountList[account.linkedAccount]}\n'
+    f'username  : {account.username}\n' + \
+    f'email     : {account.email}\n' + \
+    f'password  : {account.password}\n' + \
+    f'linked Acc: {account.linkedAccount}\n'
 
 # returns function object that displays given account details, 
-# with next state that 1) edit, 2) exit
+# with next state that edits or exits
 def fog_focusAccount(account):
   def outputfunc():
     st_viewAccount = State(f'{stringifyAccount(account)}\n\nWhat do?')
-    st_viewAccount.accountFocused = account
-    st_viewAccount.addOption(Option('Edit', fo_edit(account)))
+
+    st_editName = State(f'Old account name: {account.name}')
+    st_editName.addOption(Option("New account name: ", fog_editName(account)))
+    st_editUsername = State(f'Old account username: {account.username}')
+    st_editUsername.addOption(Option("New account username: ", fog_editUsername(account)))
+    st_editEmail = State(f'Old account email: {account.email}')
+    st_editEmail.addOption(Option("New account email: ", fog_editEmail(account)))
+    st_editPassword = State(f'Old account password: {account.password}')
+    st_editPassword.addOption(Option("New account password: ", fog_editPassword(account)))
+    st_editLinkeAccounts = State(f'Old account linked: {account.linkedAccount}')
+    st_editLinkeAccounts.addOption(Option("New account linked: ", fog_editLinkedAccount(account)))
+
+    st_viewAccount.addOption(Option('Edit Name', fog_nextState(st_editName)))
+    st_viewAccount.addOption(Option('Edit Username', fog_nextState(st_editUsername)))
+    st_viewAccount.addOption(Option('Edit Email', fog_nextState(st_editEmail)))
+    st_viewAccount.addOption(Option('Edit Password', fog_nextState(st_editPassword)))
+    st_viewAccount.addOption(Option('Edit LinkedAccounts', fog_nextState(st_editLinkeAccounts)))
     st_viewAccount.addOption(Option('Exit', fo_home))
     return st_viewAccount
   return outputfunc
 
-# returns function object that returns the home edit state, 
-# which makes users choose which variables to edit given an account
-def fo_edit(account):
-  def outputfunc():
-    st_editName = State(f'Old account name: {account.name}')
-    st_editName.addOption(Option("New account name: ", fog_editName(account)))
-    st_editEmail = State(f'Old account username: {master.usernameList[account.username]}')
-    st_editEmail.addOption(Option("New account username: ", fog_editEmail(account)))
-    st_editUsername = State(f'Old account email: {master.emailList[account.email]}')
-    st_editUsername.addOption(Option("New account email: ", fog_editUsername(account)))
-    st_editPassword = State(f'Old account password: {master.passwordList[account.password]}')
-    st_editPassword.addOption(Option("New account password: ", fog_editPassword(account)))
-    st_editLinkeAccounts = State(f'Old account linked: {master.linkedAccountList[account.linkedAccount]}')
-    st_editLinkeAccounts.addOption(Option("New account linked: ", fog_editLinkedAccount(account)))
-
-    st_edit = State(f'{stringifyAccount(account)}\n\nWhat to change?')
-    st_edit.addOption(Option('Name', fog_nextState(st_editName)))
-    st_edit.addOption(Option('Email', fog_nextState(st_editEmail)))
-    st_edit.addOption(Option('Username', fog_nextState(st_editUsername)))
-    st_edit.addOption(Option('Password', fog_nextState(st_editPassword)))
-    st_edit.addOption(Option('LinkedAccounts', fog_nextState(st_editLinkeAccounts)))
-    return st_edit
-  return outputfunc
 
 ### end of processes
 

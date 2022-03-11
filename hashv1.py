@@ -17,13 +17,26 @@ master = None
 
 class Master():
   def __init__(self):
+    # the following list should be unique at all times.
+    # current update operations: see def updateLists
     self.emailList = []
     self.passwordList = []
     self.accountList = []
     self.usernameList = []
     self.linkedAccountList = [] # entries will be the string in Account.name
-    self.filteredAccountList = [] # a view to show only filtered accounts (contains exact same objects as accountList)
 
+  # load data from some file in same directory
+  def load(self):
+    pass
+
+  # save data to file
+  def save(self):
+    self.sortAlphaNumeric()
+    self.updateLists()
+    with open(MASTER_FILE_NAME, 'wb') as outFile:
+      pickle.dump(master, outFile, pickle.HIGHEST_PROTOCOL)
+      print('changes saved')
+    
   # returns number of accounts in data
   def numAccounts(self):
     return len(self.accountList)
@@ -53,20 +66,16 @@ class Master():
 
   # returns a list of Accounts using given email, assuming it exists
   def filterAccountsByEmail(self, email):
-    ptr = self.getNumPointer(self.emailList, email)
-    return list(filter(lambda a: a.email == ptr, self.accountList))
+    return list(filter(lambda a: a.email == email, self.accountList))
   # returns a list of Accounts using given username, assuming it exists
   def filterAccountsByUsername(self, username):
-    ptr = self.getNumPointer(self.usernameList, username)
-    return list(filter(lambda a: a.username == ptr, self.accountList))
+    return list(filter(lambda a: a.username == username, self.accountList))
   # returns a list of Accounts using given password, assuming it exists
   def filterAccountsByPassword(self, password):
-    ptr = self.getNumPointer(self.passwordList, password)
-    return list(filter(lambda a: a.password == ptr, self.accountList))
+    return list(filter(lambda a: a.password == password, self.accountList))
   # returns a list of Accounts using given account name, assuming it exists
   def filterAccountsByLinkedAccount(self, name):
-    ptr = self.getNumPointer(self.linkedAccountList, name)
-    return list(filter(lambda a: a.linkedAccount == ptr, self.accountList))
+    return list(filter(lambda a: a.linkedAccount == name, self.accountList))
   
   # adds a given account with a non-empty name to the database, and returns it
   def addAccount(self, account):
@@ -97,38 +106,49 @@ class Master():
     
   # given an Account, returns Account edited
   def editUsername(self, account, text):
-    account.username = self.getNumPointer(self.usernameList, text)
+    account.username = text
+    self.save()
     return account
 
   # given an Account, returns Account edited
   def editEmail(self, account, text):
-    account.email = self.getNumPointer(self.emailList, text)
+    account.email = text
+    self.save()
     return account
 
   # given an Account, returns Account edited
   def editPassword(self, account, text):
-    account.password = self.getNumPointer(self.passwordList, text)
+    account.password = text
+    self.save()
     return account
     
   # given an Account, returns Account edited
   def editLinkedAccount(self, account, text):
-    account.linkedAccount = self.getNumPointer(self.linkedAccountList, text)
+    # check that account exists:
+    if text not in [acc.name for acc in self.accountList]:
+      print(f'Account to be linked does not exist yet. Create it first.')
+      return account
+    account.linkedAccount = text
+    self.save()
     return account
 
-  # # LEGACY
-  # def viewAccount(self, index, showDetails=False):
-  #   account = self.filteredAccountList[index]
-  #   print(f'Account : {account.name}')
-  #   print(f'username: {account.username}')
-  #   print(f'email   : {self.emailList[account.email]}')
-  #   print(f'password: {self.passwordList[account.password]}')
-  #   if showDetails or prompt('more details?'):
-  #     print('misc ================================')
-  #     for line in account.misc:
-  #       print(line, end='')
-  #     print('\n=====================================')
+  # updates accumulation lists
+  def updateLists(self):
+    # clear lists
+    self.usernameList = []
+    self.emailList = []
+    self.passwordList = []
+    self.linkedAccountList = []
 
-
+    for acc in self.accountList:
+      if acc.username not in self.usernameList:
+        self.usernameList.append(acc.username)
+      if acc.email not in self.emailList:
+        self.emailList.append(acc.email)
+      if acc.password not in self.passwordList:
+        self.passwordList.append(acc.password)
+      if acc.linkedAccount not in self.linkedAccountList:
+        self.linkedAccountList.append(acc.linkedAccount)
 
 class Account():
   def __init__(self):
@@ -151,21 +171,32 @@ def sublist(list, letter):
 
 def viewAllData():
   with open('allData.txt', 'w') as f:
-    for account in master.accountList:
+    # for i in master.usernameList:
+    #   print(i)
 
-      # if not isinstance(account.email, int):
-      #   print(f'{account.name} email in plain text')
-      # if not isinstance(account.password, int): 
-      #   print(f'{account.name} password in plain text : {account.password}')
+    for i, a in enumerate(master.linkedAccountList):
+      print(i, a)
+
+    # for account in master.accountList:
+
+    #   if isinstance(account.username, int):
+    #     account.username = master.usernameList[account.username]
+    #   if isinstance(account.linkedAccount, int):
+    #     account.linkedAccount = master.linkedAccountList[account.linkedAccount]
+    #   if isinstance(account.email, int):
+    #     account.email = master.emailList[account.email]
+    #   if isinstance(account.password, int): 
+    #     account.password = master.passwordList[account.password]
+      
       # f.write(f'===================================\n')
       # f.write(f'Account : {account.name}\n')
       # f.write(f'username: {account.username}\n')
       # f.write(f'email   : {account.email}\n')
       # f.write(f'password: {account.password}\n')
-      if not isinstance(account.username, int):
-        master.editUsername(account, account.username)
-      if not isinstance(account.linkedAccount, int):
-        master.editLinkedAccount(account, account.linkedAccount)
+      # if not isinstance(account.username, int):
+      #   master.editUsername(account, account.username)
+      # if not isinstance(account.linkedAccount, int):
+      #   master.editLinkedAccount(account, account.linkedAccount)
 
 def numberInput(string):
   text = input(string)
@@ -206,7 +237,7 @@ if __name__ == '__main__':
       3. transfer accounts\n\
       4. delete account entry\n\
       5. edit account entry\n\
-      6. exit\n\
+      `. exit\n\
       (1\\2\\3\\...): ')
     if command == '1':
       if prompt('List Accounts?'):
@@ -225,7 +256,7 @@ if __name__ == '__main__':
         master.listAccounts()
       index = numberInput('Enter index of account to edit: ')
       master.editAccount(index - 1)
-    elif command == '6':
+    elif command == '`':
       break
     else:
       print('didn\'t understand input')
