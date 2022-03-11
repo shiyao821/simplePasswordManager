@@ -1,6 +1,4 @@
 from types import FunctionType
-
-from sqlalchemy import outparam
 from hashv1 import Database, Account
 
 ### High level view:
@@ -76,12 +74,12 @@ class Manager:
     st_searchByName = State('Search Accounts by Name')
     
     st_home.addOption(Option('Search Accounts by Name', fog_nextState(st_searchByName)))
+    st_home.addOption(Option('Add New Account', fog_nextState(st_addAccount)))
     st_home.addOption(Option('Search Accounts by Email', fo_getEmailList))
     st_home.addOption(Option('Search Accounts by Username', fo_getUsernameList))
     st_home.addOption(Option('Search Accounts by Password', fo_getPasswordList))
     st_home.addOption(Option('Search Accounts by Linked Account', fo_getLinkedAccountList))
-    st_home.addOption(Option('Add New Account', fog_nextState(st_addAccount)))
-    st_home.addOption(Option('Delete Account Entry', fog_nextState(st_deleteAccount)))
+    # st_home.addOption(Option('Delete Account Entry', fog_nextState(st_deleteAccount))) TODO
 
     opt_inputKeyword = Option('Enter keyword to search:', fo_searchByName)
     st_searchByName.addOption(opt_inputKeyword)
@@ -292,14 +290,23 @@ def stringifyAccount(account):
     f'username  : {account.username}\n' + \
     f'email     : {account.email}\n' + \
     f'password  : {account.password}\n' + \
-    f'linked Acc: {account.linkedAccount}\n'
+    f'linked Acc: {account.linkedAccount}\n' + \
+    f'misc      : \n{stringifyMisc(account.misc)}'
+
+# returns a string of the dict-type misc information variable to be printed
+def stringifyMisc(misc):
+  # return str(misc)
+  string = ''
+  for i in misc.items():
+    string += f'  {i[0]} : {i[1]}\n'
+  return string
+
 
 # returns function object that displays given account details, 
 # with next state that edits or exits
 def fog_focusAccount(account):
   def outputfunc():
     st_viewAccount = State(f'{stringifyAccount(account)}\n\nWhat do?')
-
     st_editName = State(f'Old account name: {account.name}')
     st_editName.addOption(Option("New account name: ", fog_editName(account)))
     st_editUsername = State(f'Old account username: {account.username}')
@@ -310,6 +317,9 @@ def fog_focusAccount(account):
     st_editPassword.addOption(Option("New account password: ", fog_editPassword(account)))
     st_editLinkeAccounts = State(f'Old account linked: {account.linkedAccount}')
     st_editLinkeAccounts.addOption(Option("New account linked: ", fog_editLinkedAccount(account)))
+    st_editMisc = State(f'What field to edit? (adds if not existent)')
+    st_editMisc.addOption(Option('Field name: ', fog_chooseField(account)))
+
     st_deleteConfirmation = State(f'Are you sure you want to delete the account for {account.name}')
     st_deleteConfirmation.addOption(Option('1 = YES \\ enter = NO: ', fog_deleteAccount(account)))
 
@@ -318,6 +328,7 @@ def fog_focusAccount(account):
     st_viewAccount.addOption(Option('Edit Email', fog_nextState(st_editEmail)))
     st_viewAccount.addOption(Option('Edit Password', fog_nextState(st_editPassword)))
     st_viewAccount.addOption(Option('Edit LinkedAccounts', fog_nextState(st_editLinkeAccounts)))
+    st_viewAccount.addOption(Option('Edit Misc info', fog_nextState(st_editMisc)))
     st_viewAccount.addOption(Option('Delete Account', fog_nextState(st_deleteConfirmation)))
     st_viewAccount.addOption(Option('Exit', fo_home))
     return st_viewAccount
@@ -338,6 +349,28 @@ def fog_deleteAccount(acc):
     if input == '1':
       data.deleteAccount(acc)
       fo_home()
+  return outputfunc
+
+# returns a function object that asks for field to edit
+# field exists: next state asks for new value, field doesn't exist: add key
+def fog_chooseField(acc):
+  def outputfunc(field):
+    if field in acc.misc:
+      st_editField = State(f'Old value: {acc.misc[field]}')
+      st_editField.addOption(Option('New value: ', fog_editField(acc, field)))
+      return st_editField
+    else:
+      st_addField = State(f'To add field: {field}')
+      st_addField.addOption(Option('Value: ', fog_editField(acc, field)))
+      return st_addField
+  return outputfunc
+
+# generates function object updates the misc field with requested value
+# if value is empty, field is deleted. Handled internally by data
+def fog_editField(acc, field):
+  def outputfunc(value):
+    updatedAcc = data.editMiscField(acc, field, value)
+    return fog_focusAccount(updatedAcc)()
   return outputfunc
 
 ### end of processes

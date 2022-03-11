@@ -126,6 +126,14 @@ class Database():
     self.save()
     return account
 
+  # given an account, update the misc field. Deletes key-value pair if 'value' is empty
+  def editMiscField(self, acc, field, value):
+    if value == '':
+      del acc.misc[field]
+    else:
+      acc.misc[field] = value
+    return acc
+
   # updates accumulation lists
   def updateLists(self):
     # clear lists
@@ -145,42 +153,43 @@ class Database():
         self.linkedAccountList.append(acc.linkedAccount)
 
 class Account():
-  def __init__(self, name='', username='', email='', password='', linkedAccount='', misc=[]):
+  def __init__(self, name='', username='', email='', password='', linkedAccount='', misc={}):
     self.name = name
     self.username = username
     self.email = email
     self.password = password
     self.linkedAccount = linkedAccount
-    self.misc = misc # TODO: convert to dict
+    self.misc = misc
 
 def dataScript():
-  with open('allData.txt', 'w') as f:
-    # for i in master.usernameList:
-    #   print(i)
+  # for i in master.usernameList:
+  #   print(i)
+  # for i, a in enumerate(master.linkedAccountList):
+  #   print(i, a)
 
-    for i, a in enumerate(master.linkedAccountList):
-      print(i, a)
+  for acc in master.accountList:
+    new = {}
+    new['legacy'] = acc.misc
+    acc.misc = new
 
-    # for account in master.accountList:
-
-    #   if isinstance(account.username, int):
-    #     account.username = master.usernameList[account.username]
-    #   if isinstance(account.linkedAccount, int):
-    #     account.linkedAccount = master.linkedAccountList[account.linkedAccount]
-    #   if isinstance(account.email, int):
-    #     account.email = master.emailList[account.email]
-    #   if isinstance(account.password, int): 
-    #     account.password = master.passwordList[account.password]
-      
-      # f.write(f'===================================\n')
-      # f.write(f'Account : {account.name}\n')
-      # f.write(f'username: {account.username}\n')
-      # f.write(f'email   : {account.email}\n')
-      # f.write(f'password: {account.password}\n')
-      # if not isinstance(account.username, int):
-      #   master.editUsername(account, account.username)
-      # if not isinstance(account.linkedAccount, int):
-      #   master.editLinkedAccount(account, account.linkedAccount)
+  #   if isinstance(account.username, int):
+  #     account.username = master.usernameList[account.username]
+  #   if isinstance(account.linkedAccount, int):
+  #     account.linkedAccount = master.linkedAccountList[account.linkedAccount]
+  #   if isinstance(account.email, int):
+  #     account.email = master.emailList[account.email]
+  #   if isinstance(account.password, int): 
+  #     account.password = master.passwordList[account.password]
+    
+    # f.write(f'===================================\n')
+    # f.write(f'Account : {account.name}\n')
+    # f.write(f'username: {account.username}\n')
+    # f.write(f'email   : {account.email}\n')
+    # f.write(f'password: {account.password}\n')
+    # if not isinstance(account.username, int):
+    #   master.editUsername(account, account.username)
+    # if not isinstance(account.linkedAccount, int):
+    #   master.editLinkedAccount(account, account.linkedAccount)
 
 if __name__ == '__main__':
 
@@ -192,18 +201,13 @@ if __name__ == '__main__':
   else:
     print(f'New master file {MASTER_FILE_NAME} created')
 
-  while True:
-    command = input('\
-      Proceed with Script?\n\
-      (1 for yes): ')
-    if command == 'y':
-      dataScript()
-      print('script completed')
-      break
-    else:
-      print('bye')
-
-    # save at the end of 1 operation
-    master.save()
-  
+  command = input('\
+    Proceed with Script?\n\
+    (1 for yes): ')
+  if command == 'y':
+    dataScript()
+    print('script completed')
+  else:
+    print('bye')
+  # save at the end of 1 operation
   master.save()
