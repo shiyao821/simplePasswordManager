@@ -26,6 +26,7 @@ class Database():
       while json_string := inJson.readline():
         acc = Account(**json.loads(json_string))
         self.accountList.append(acc)
+      self.updateLists()
     return self
 
   # save data to file
