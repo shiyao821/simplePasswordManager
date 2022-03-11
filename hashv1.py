@@ -73,6 +73,7 @@ class Database():
   def addAccount(self, account):
     if not account.name == '':
       self.accountList.append(account)
+      self.save()
     return account
 
   # given an Account, delete it from the database
@@ -85,6 +86,7 @@ class Database():
         del acc
         print(f'Account for {accountName} deleted')
         break
+    self.save()
 
   # check if account name exists
   def checkNameExists(self, name):
