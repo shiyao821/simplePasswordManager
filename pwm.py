@@ -1,5 +1,5 @@
 from types import FunctionType
-from hashv1 import Database, Account
+from pwmdata import Database, Account
 
 ### High level view:
 # States are used to facilitate going 'back' to the previous step. User input = '`'
@@ -398,7 +398,7 @@ def fog_editField(acc, field):
 if __name__ == '__main__':
 
   # Init Options and States
-  print('Hashv2 running...')
+  print('Password Manager running...')
 
   data = Database()
   data.load()
