@@ -26,8 +26,9 @@ from hashv1 import Database, Account
 
 class Manager:
 
-  columnCharWidth = 25
+  maxColCharWidth = 28
   totalColumns = 4
+  indent = 2
 
   def __init__(self) -> None:
     self.stateStack = []
@@ -71,14 +72,14 @@ class Manager:
     st_addAccount = State('Adding new account')
     st_addAccount.addOption(Option('Account name: ', fo_addAccount))
     st_deleteAccount = State('Deleting account')
-    st_searchByName = State('Search Accounts by Name')
+    st_searchByName = State('Search by Name')
     
-    st_home.addOption(Option('Search Accounts by Name', fog_nextState(st_searchByName)))
+    st_home.addOption(Option('Search by Name', fog_nextState(st_searchByName)))
     st_home.addOption(Option('Add New Account', fog_nextState(st_addAccount)))
-    st_home.addOption(Option('Search Accounts by Email', fo_getEmailList))
-    st_home.addOption(Option('Search Accounts by Username', fo_getUsernameList))
-    st_home.addOption(Option('Search Accounts by Password', fo_getPasswordList))
-    st_home.addOption(Option('Search Accounts by Linked Account', fo_getLinkedAccountList))
+    st_home.addOption(Option('Search by Email', fo_getEmailList))
+    st_home.addOption(Option('Search by Username', fo_getUsernameList))
+    st_home.addOption(Option('Search by Password', fo_getPasswordList))
+    st_home.addOption(Option('Search by Linked Account', fo_getLinkedAccountList))
     # st_home.addOption(Option('Delete Account Entry', fog_nextState(st_deleteAccount))) TODO
 
     opt_inputKeyword = Option('Enter keyword to search:', fo_searchByName)
@@ -117,9 +118,26 @@ class State:
       return self.options[0].execute()
     # Choice input states
     else:
-      for n, option in enumerate(self.options, start=1):
-        print(f'{n}. {option.message}')
+      for n, option in enumerate(self.options):
+        message = option.message[0:Manager.maxColCharWidth - Manager.indent - 1 - len(str(n + 1))]
+        print(f'{n + 1}. {message}' + \
+          f'{" " * max((Manager.maxColCharWidth - Manager.indent - len(str(n + 1)) - len(message) + 1), 1)}', end='')
+        if n % Manager.totalColumns == Manager.totalColumns - 1 :
+          print("")
+      print("")
       text = input('(1/2/3/...) >>> ')
+      # duplicate keys for easy reach on qwerty keyboard  
+      numMapping = {
+        'q': '4',
+        'w': '5',
+        'e': '6',
+        'a': '7',
+        's': '8',
+        'd': '9'
+      }
+      if text in numMapping:
+        text = numMapping[text]
+    
       if text.isdigit():
         choice = int(text) - 1
         try:
@@ -291,14 +309,15 @@ def stringifyAccount(account):
     f'email     : {account.email}\n' + \
     f'password  : {account.password}\n' + \
     f'linked Acc: {account.linkedAccount}\n' + \
-    f'misc      : \n{stringifyMisc(account.misc)}'
+    f'misc:\n' + \
+    f'{stringifyMisc(account.misc)}'
 
 # returns a string of the dict-type misc information variable to be printed
 def stringifyMisc(misc):
   # return str(misc)
   string = ''
   for i in misc.items():
-    string += f'  {i[0]} : {i[1]}\n'
+    string += f'  {i[0]}{" " * max(8 - len(i[0]), 0)}: {i[1]}\n'
   return string
 
 
@@ -317,7 +336,7 @@ def fog_focusAccount(account):
     st_editPassword.addOption(Option("New account password: ", fog_editPassword(account)))
     st_editLinkeAccounts = State(f'Old account linked: {account.linkedAccount}')
     st_editLinkeAccounts.addOption(Option("New account linked: ", fog_editLinkedAccount(account)))
-    st_editMisc = State(f'What field to edit? (adds if not existent)')
+    st_editMisc = State(f'What field to edit / delete? (adds if not existent)')
     st_editMisc.addOption(Option('Field name: ', fog_chooseField(account)))
 
     st_deleteConfirmation = State(f'Are you sure you want to delete the account for {account.name}')
