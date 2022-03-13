@@ -11,13 +11,14 @@ MASTER_JSON_NAME = 'acc.json'
 master = None
 
 class Database():
-  def __init__(self, accountList=[], emailList=[], usernameList=[], passwordList=[], linkedAccountList=[]):
+  def __init__(self, accountList=[], emailList=[], usernameList=[], passwordList=[], phoneList=[], linkedAccountList=[]):
     # the following list should be unique at all times.
     # current update operations: see def updateLists
     self.accountList = accountList
     self.usernameList = usernameList
     self.emailList = emailList
     self.passwordList = passwordList
+    self.phoneList = phoneList
     self.linkedAccountList = linkedAccountList # entries will be the string in Account.name
 
   # load data from some file in same directory
@@ -65,6 +66,9 @@ class Database():
   # returns a list of Accounts using given password, assuming it exists
   def filterAccountsByPassword(self, password):
     return list(filter(lambda a: a.password == password, self.accountList))
+    # returns a list of Accounts using given phone number, assuming it exists
+  def filterAccountsByPhone(self, phone):
+    return list(filter(lambda a: a.phone == phone, self.accountList))
   # returns a list of Accounts using given account name, assuming it exists
   def filterAccountsByLinkedAccount(self, name):
     return list(filter(lambda a: a.linkedAccount == name, self.accountList))
@@ -118,6 +122,15 @@ class Database():
     account.password = text
     self.save()
     return account
+
+  # given an Account, returns Account edited
+  def editPhone(self, account, text):
+    if not self.isPhoneNumber(text):
+      print(f'Text entered {text} is not of phone number format (accepts numbers and "+" only)')
+      return account
+    account.phone = text
+    self.save()
+    return account
     
   # given an Account, returns Account edited
   def editLinkedAccount(self, account, text):
@@ -137,12 +150,19 @@ class Database():
       acc.misc[field] = value
     return acc
 
+  # given a text, check if is of phone format:
+  def isPhoneNumber(self, text):
+    if text[0] == '+':
+      text = text[1:]
+    return text.isnumeric()
+
   # updates accumulation lists
   def updateLists(self):
     # clear lists
     self.usernameList = []
     self.emailList = []
     self.passwordList = []
+    self.phoneList = []
     self.linkedAccountList = []
 
     for acc in self.accountList:
@@ -152,15 +172,18 @@ class Database():
         self.emailList.append(acc.email)
       if acc.password not in self.passwordList:
         self.passwordList.append(acc.password)
+      if acc.phone not in self.phoneList:
+        self.phoneList.append(acc.phone)
       if acc.linkedAccount not in self.linkedAccountList:
         self.linkedAccountList.append(acc.linkedAccount)
 
 class Account():
-  def __init__(self, name='', username='', email='', password='', linkedAccount='', misc={}):
+  def __init__(self, name='', username='', email='', password='', phone='', linkedAccount='', misc={}):
     self.name = name
     self.username = username
     self.email = email
     self.password = password
+    self.phone = phone
     self.linkedAccount = linkedAccount
     self.misc = misc
 

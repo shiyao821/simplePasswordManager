@@ -79,6 +79,7 @@ class Manager:
     st_home.addOption(Option('Search by Email', fo_getEmailList))
     st_home.addOption(Option('Search by Username', fo_getUsernameList))
     st_home.addOption(Option('Search by Password', fo_getPasswordList))
+    st_home.addOption(Option('Search by Phone Number', fo_getPhoneList))
     st_home.addOption(Option('Search by Linked Account', fo_getLinkedAccountList))
     # st_home.addOption(Option('Delete Account Entry', fog_nextState(st_deleteAccount))) TODO
 
@@ -250,7 +251,23 @@ def fo_getPasswordList():
   for i in data.passwordList:
     st_passwordList.addOption(Option(i, fog_getAccountsWithPassword(i), textInput=False))
   return st_passwordList
+  
+# returns next state containing list of accounts filtered by phone number
+def fog_getAccountsWithPhone(phone):
+  def outputfunc():
+    accountList = data.filterAccountsByPhone(phone)
+    st_filtered = State(f'There are {len(accountList)} matches')
+    for acc in accountList:
+      st_filtered.addOption(Option(acc.name, fog_focusAccount(acc), textInput=False))
+    return st_filtered
+  return outputfunc
 
+# function object that shows all passwords used in accounts
+def fo_getPhoneList():
+  st_phoneList = State('Phone Numbers:')
+  for i in data.phoneList:
+    st_phoneList.addOption(Option(i, fog_getAccountsWithPhone(i), textInput=False))
+  return st_phoneList
 
 # returns next state containing list of accounts filtered by name of linked account
 def fog_getAccountsWithLinkedAccount(name):
@@ -295,6 +312,12 @@ def fog_editPassword(account):
     manager.popStack(2)
     return fog_focusAccount(updatedAccount)()
   return outputfunc
+def fog_editPhone(account):
+  def outputfunc(text):
+    updatedAccount = data.editPhone(account, text)
+    manager.popStack(2)
+    return fog_focusAccount(updatedAccount)()
+  return outputfunc
 def fog_editLinkedAccount(account):
   def outputfunc(text):
     updatedAccount = data.editLinkedAccount(account, text)
@@ -308,6 +331,7 @@ def stringifyAccount(account):
     f'username  : {account.username}\n' + \
     f'email     : {account.email}\n' + \
     f'password  : {account.password}\n' + \
+    f'phone     : {account.phone}\n' + \
     f'linked Acc: {account.linkedAccount}\n' + \
     f'misc:\n' + \
     f'{stringifyMisc(account.misc)}'
@@ -336,6 +360,8 @@ def fog_focusAccount(account):
     st_editPassword.addOption(Option("New account password: ", fog_editPassword(account)))
     st_editLinkeAccounts = State(f'Old account linked: {account.linkedAccount}')
     st_editLinkeAccounts.addOption(Option("New account linked: ", fog_editLinkedAccount(account)))
+    st_editPhone = State(f'Old Phone number: {account.phone}')
+    st_editPhone.addOption(Option("New Phone number: ", fog_editPhone(account)))
     st_editMisc = State(f'What field to edit / delete? (adds if not existent)')
     st_editMisc.addOption(Option('Field name: ', fog_chooseField(account)))
 
@@ -346,6 +372,7 @@ def fog_focusAccount(account):
     st_viewAccount.addOption(Option('Edit Username', fog_nextState(st_editUsername)))
     st_viewAccount.addOption(Option('Edit Email', fog_nextState(st_editEmail)))
     st_viewAccount.addOption(Option('Edit Password', fog_nextState(st_editPassword)))
+    st_viewAccount.addOption(Option('Edit Phone Number', fog_nextState(st_editPhone)))
     st_viewAccount.addOption(Option('Edit LinkedAccounts', fog_nextState(st_editLinkeAccounts)))
     st_viewAccount.addOption(Option('Edit Misc info', fog_nextState(st_editMisc)))
     st_viewAccount.addOption(Option('Delete Account', fog_nextState(st_deleteConfirmation)))
