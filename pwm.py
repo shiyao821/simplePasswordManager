@@ -1,3 +1,4 @@
+from getpass import getpass
 from types import FunctionType
 from pwmdata import Database, Account
 
@@ -61,7 +62,6 @@ class Manager:
   def run(self):
     while len(self.stateStack) > 0:
       self.readStack()
-    printn('Closing Manager')
 
   # creating the state tree from root to branches
   def initialization(self):
@@ -73,6 +73,8 @@ class Manager:
     st_addAccount.addOption(Option('Account name: ', fo_addAccount))
     st_deleteAccount = State('Deleting account')
     st_searchByName = State('Search by Name')
+    st_checkMasterPassword = State('Changing Master Password\nYou can backtrack this process with "`"')
+    st_checkMasterPassword.addOption(Option('Enter current master password: ', fo_checkMasterPassword, passwordInput=True))
     
     st_home.addOption(Option('Search by Name', fog_nextState(st_searchByName)))
     st_home.addOption(Option('Add New Account', fog_nextState(st_addAccount)))
@@ -81,6 +83,7 @@ class Manager:
     st_home.addOption(Option('Search by Password', fo_getPasswordList))
     st_home.addOption(Option('Search by Phone Number', fo_getPhoneList))
     st_home.addOption(Option('Search by Linked Account', fo_getLinkedAccountList))
+    st_home.addOption(Option('Change Master Password', fog_nextState(st_checkMasterPassword)))
     # st_home.addOption(Option('Delete Account Entry', fog_nextState(st_deleteAccount))) TODO
 
     opt_inputKeyword = Option('Enter keyword to search:', fo_searchByName)
@@ -103,7 +106,10 @@ class State:
     # If there is only 1 option, it could be a text input state
     elif optionsLength == 1:
       if self.options[0].textInput:
-        text = input(f'{self.options[0].message}')
+        if self.options[0].passwordInput:
+          text = getpass(f'{self.options[0].message}')
+        else:
+          text = input(f'{self.options[0].message}')
         # exception case - for going back
         if text == '`':
           printn('"Back" registered')
@@ -157,12 +163,13 @@ class State:
       
 
 class Option:
-  def __init__(self, message, functionObj, textInput=True) -> None:
+  def __init__(self, message, functionObj, textInput=True, passwordInput=False) -> None:
     if type(functionObj) != FunctionType:
       raise TypeError("Option: Function Object input is of wrong type")
     self.message = message
     self.functionObj = functionObj
     self.textInput = textInput
+    self.passwordInput = passwordInput
 
   def execute(self, *args):
     if args:
@@ -190,6 +197,31 @@ def fo_home():
 ### end of UTIL Functions
 
 ### processes (interacts with Data)
+
+# function object that checks current master password for authentication
+def fo_checkMasterPassword(text):
+  if data.masterPassword == text:
+    st_enterNewPass = State('Authentication Complete')
+    st_enterNewPass.addOption(Option('Enter new master password: ', fo_enterNewMasterPassword, passwordInput=True))
+    return st_enterNewPass
+  else:
+    print('The password you have entered is invalid')
+
+def fo_enterNewMasterPassword(newPassword):
+  st_confirmNewPass = State('Confirm the new password')
+  st_confirmNewPass.addOption(Option('Re-enter new master password', fog_confirmNewMasterPassword(newPassword), passwordInput=True))
+  return st_confirmNewPass
+
+# function object generator that asks for password again for confirmation
+def fog_confirmNewMasterPassword(password):
+  def outputfunc(text):    
+    if text == password:
+      data.masterPassword = password
+    else:
+      print('password entered does not match')
+    # back to home state regardless of match
+    fo_home()
+  return outputfunc
 
 # function object that requests for keyword input to filter data data
 # returns next state containing list of accounts filtered
@@ -426,12 +458,12 @@ if __name__ == '__main__':
 
   # Init Options and States
   print('Password Manager running...')
-
   data = Database()
-  data.load()
+  
+  if data.load():
+    manager = Manager()
+    manager.initialization()
+    manager.run()
+    data.save()
 
-  manager = Manager()
-  manager.initialization()
-  manager.run()
-
-  data.save()
+  print("Exiting Password Manager")

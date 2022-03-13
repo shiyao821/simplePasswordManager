@@ -1,19 +1,20 @@
-import os
 import json
-import copy
+from base64 import urlsafe_b64encode
+from getpass import getpass
+from copy import copy
+from cryptography.fernet import Fernet
+from cryptography.fernet import InvalidToken
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
-### this version is to be used together with hashv2.py
+### this version is to be used together with pwm.py
 # It is repurposed to serve as the data module, abstracts away data operations and removes UX operations
 
-# Init and counters
-MASTER_FILE_NAME = 'acc.pkl'
-MASTER_JSON_NAME = 'acc.json'
-master = None
+DATA_FILE_NAME = 'accounts.data'
 
 class Database():
   def __init__(self, accountList=[], emailList=[], usernameList=[], passwordList=[], phoneList=[], linkedAccountList=[]):
-    # the following list should be unique at all times.
-    # current update operations: see def updateLists
+    self.masterPassword = ''
     self.accountList = accountList
     self.usernameList = usernameList
     self.emailList = emailList
@@ -23,22 +24,48 @@ class Database():
 
   # load data from some file in same directory
   def load(self):
-    with open(MASTER_JSON_NAME, 'r') as inJson:
-      while json_string := inJson.readline():
-        acc = Account(**json.loads(json_string))
-        self.accountList.append(acc)
-      self.updateLists()
-    return self
+    try:
+      with open(DATA_FILE_NAME, 'rb') as inputFile:
+        encrypted = inputFile.read()
+        # Save input password for encryption later
+        self.masterPassword = getpass("Please enter your password: ")
+        # decrypt file based on self.masterPassword
+        kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=b'69420', iterations=69420)
+        key = urlsafe_b64encode(kdf.derive(bytes(self.masterPassword, 'utf-8')))
+        fernet = Fernet(key)
+        decrypted = fernet.decrypt(encrypted)
+
+        for line in decrypted.splitlines():
+          acc = Account(**json.loads(str(line, 'utf-8')))
+          self.accountList.append(acc)
+        self.updateLists()
+      return self
+    except InvalidToken:
+      print('The password you have entered is invalid')
+      return
+    except FileNotFoundError:
+      print(f'Data file {DATA_FILE_NAME} does not exist. \n' + \
+        'It seems like this is your first time using the program.')
+      self.masterPassword = input("Please setup a password: ")
+      return self
 
   # save data to file
   def save(self):
     self.sortAlphaNumeric()
     self.updateLists()
-    with open(MASTER_JSON_NAME, 'w') as outJson:
+    with open(DATA_FILE_NAME, 'wb') as outputFile:
+      json_string = ''
       for acc in self.accountList:
-        json_string = json.dumps(acc.__dict__)
-        outJson.write(json_string + '\n')
-        
+        json_string += json.dumps(acc.__dict__) + '\n'
+
+      # encrypt based on self.masterPassword 
+      kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=b'69420', iterations=69420)
+      key = urlsafe_b64encode(kdf.derive(bytes(self.masterPassword, 'utf-8')))
+      fernet = Fernet(key)
+      
+      encrypted = fernet.encrypt(bytes(json_string, 'ascii'))
+      outputFile.write(encrypted)
+
   # returns number of accounts in data
   def numAccounts(self):
     return len(self.accountList)
@@ -82,7 +109,7 @@ class Database():
 
   # given an Account, delete it from the database
   def deleteAccount(self, account):
-    accountName = copy.copy(account.name)
+    accountName = copy(account.name)
     # search for account in the actual list
     for acc in self.accountList:
       if acc == account:
@@ -186,54 +213,3 @@ class Account():
     self.phone = phone
     self.linkedAccount = linkedAccount
     self.misc = misc
-
-def dataScript():
-  # for i in master.usernameList:
-  #   print(i)
-  # for i, a in enumerate(master.linkedAccountList):
-  #   print(i, a)
-
-  for acc in master.accountList:
-    new = {}
-    new['legacy'] = acc.misc
-    acc.misc = new
-
-  #   if isinstance(account.username, int):
-  #     account.username = master.usernameList[account.username]
-  #   if isinstance(account.linkedAccount, int):
-  #     account.linkedAccount = master.linkedAccountList[account.linkedAccount]
-  #   if isinstance(account.email, int):
-  #     account.email = master.emailList[account.email]
-  #   if isinstance(account.password, int): 
-  #     account.password = master.passwordList[account.password]
-    
-    # f.write(f'===================================\n')
-    # f.write(f'Account : {account.name}\n')
-    # f.write(f'username: {account.username}\n')
-    # f.write(f'email   : {account.email}\n')
-    # f.write(f'password: {account.password}\n')
-    # if not isinstance(account.username, int):
-    #   master.editUsername(account, account.username)
-    # if not isinstance(account.linkedAccount, int):
-    #   master.editLinkedAccount(account, account.linkedAccount)
-
-if __name__ == '__main__':
-
-  master = Database()
-  # check if previous dump file exists
-  if os.path.isfile(MASTER_FILE_NAME):
-    with open(MASTER_FILE_NAME, 'rb') as inFile:
-      master.load()  
-  else:
-    print(f'New master file {MASTER_FILE_NAME} created')
-
-  command = input('\
-    Proceed with Script?\n\
-    (1 for yes): ')
-  if command == 'y':
-    dataScript()
-    print('script completed')
-  else:
-    print('bye')
-  # save at the end of 1 operation
-  master.save()
