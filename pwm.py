@@ -314,7 +314,7 @@ def fog_getAccountsWithLinkedAccount(name):
 # function object that shows all linked accounts used in accounts
 def fo_getLinkedAccountList():
   st_linkedAccountList = State('Linked Accounts:')
-  for i in data.linkedAccountList:
+  for i in data.linkedAccountsList:
     st_linkedAccountList.addOption(Option(i, fog_getAccountsWithLinkedAccount(i), textInput=False))
   return st_linkedAccountList
 
@@ -350,9 +350,9 @@ def fog_editPhone(account):
     manager.popStack(2)
     return fog_focusAccount(updatedAccount)()
   return outputfunc
-def fog_editLinkedAccount(account):
+def fog_editLinkedAccounts(account):
   def outputfunc(text):
-    updatedAccount = data.editLinkedAccount(account, text)
+    updatedAccount = data.editLinkedAccounts(account, text)
     manager.popStack(2)
     return fog_focusAccount(updatedAccount)()
   return outputfunc
@@ -364,9 +364,15 @@ def stringifyAccount(account):
     f'email     : {account.email}\n' + \
     f'password  : {account.password}\n' + \
     f'phone     : {account.phone}\n' + \
-    f'linked Acc: {account.linkedAccount}\n' + \
+    f'linked Acc: {stringifyLinkedAccounts(account.linkedAccount)}\n' + \
     f'misc:\n' + \
     f'{stringifyMisc(account.misc)}'
+
+def stringifyLinkedAccounts(la):
+  output = ''
+  for a in la:
+    output += a + ', '
+  return output[:-2]
 
 # returns a string of the dict-type misc information variable to be printed
 def stringifyMisc(misc):
@@ -390,8 +396,8 @@ def fog_focusAccount(account):
     st_editEmail.addOption(Option("New account email: ", fog_editEmail(account)))
     st_editPassword = State(f'Old account password: {account.password}')
     st_editPassword.addOption(Option("New account password: ", fog_editPassword(account)))
-    st_editLinkeAccounts = State(f'Old account linked: {account.linkedAccount}')
-    st_editLinkeAccounts.addOption(Option("New account linked: ", fog_editLinkedAccount(account)))
+    st_editLinkeAccounts = State(f'Currently linked Accounts: {account.linkedAccount}')
+    st_editLinkeAccounts.addOption(Option("Type another account name to add, write an existing name to delete\n: ", fog_editLinkedAccounts(account)))
     st_editPhone = State(f'Old Phone number: {account.phone}')
     st_editPhone.addOption(Option("New Phone number: ", fog_editPhone(account)))
     st_editMisc = State(f'What field to edit / delete? (adds if not existent)')
