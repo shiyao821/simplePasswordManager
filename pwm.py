@@ -12,6 +12,7 @@ from pwmdata import Database, Account
 # - will have > 1 option in the options list to display, user enters 1/2/3/4 etc
 # or 2) text-input states
 # - only 1 option in the list, with option.textInput=True, user enters text input
+# - if option.passwordInput=True, the getpass function will be used to hide password inputs
 # a state may be dynamically generated with additional dynamic data
 ### Options will contain:
 # 1) message string
