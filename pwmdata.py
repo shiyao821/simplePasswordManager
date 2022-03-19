@@ -126,8 +126,7 @@ class Database():
   # given an Account, returns Account edited
   def editName(self, account, text):
     # check uniqueness
-    if self.checkNameExists(text):
-      self.accountList.remove(account.name)
+    if not self.checkNameExists(text):
       account.name = text
     print(f'Input name {text} already exists')
     return account

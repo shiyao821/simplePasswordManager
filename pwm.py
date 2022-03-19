@@ -455,6 +455,7 @@ def fog_chooseField(acc):
 def fog_editField(acc, field):
   def outputfunc(value):
     updatedAcc = data.editMiscField(acc, field, value)
+    manager.popStack(3)
     return fog_focusAccount(updatedAcc)()
   return outputfunc
 
