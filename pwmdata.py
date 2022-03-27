@@ -1,16 +1,16 @@
 import json
 from base64 import urlsafe_b64encode
-from getpass import getpass
 from copy import copy
 from cryptography.fernet import Fernet
-from cryptography.fernet import InvalidToken
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 ### this version is to be used together with pwm.py
 # It is repurposed to serve as the data module, abstracts away data operations and removes UX operations
 
-DATA_FILE_NAME = 'accounts.data'
+class EmptyInputException(Exception):
+  def __init__(self) -> None:
+      super().__init__()
 
 class Database():
   def __init__(self, accountList=[], emailList=[], usernameList=[], passwordList=[], phoneList=[], linkedAccountList=[]):
@@ -21,39 +21,31 @@ class Database():
     self.passwordList = passwordList
     self.phoneList = phoneList
     self.linkedAccountsList = linkedAccountList # entries will be the string in Account.name
+    self.DATA_FILE_NAME = 'accounts.data'
 
   # load data from some file in same directory
-  def load(self):
-    try:
-      with open(DATA_FILE_NAME, 'rb') as inputFile:
-        encrypted = inputFile.read()
-        # Save input password for encryption later
-        self.masterPassword = getpass("Please enter your password: ")
-        # decrypt file based on self.masterPassword
-        kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=b'69420', iterations=69420)
-        key = urlsafe_b64encode(kdf.derive(bytes(self.masterPassword, 'utf-8')))
-        fernet = Fernet(key)
-        decrypted = fernet.decrypt(encrypted)
+  def load(self, password):
+    with open(self.DATA_FILE_NAME, 'rb') as inputFile:
+      encrypted = inputFile.read()
+      # Save input password for encryption later
+      self.masterPassword = password
+      # decrypt file based on self.masterPassword
+      kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=b'69420', iterations=69420)
+      key = urlsafe_b64encode(kdf.derive(bytes(self.masterPassword, 'utf-8')))
+      fernet = Fernet(key)
+      decrypted = fernet.decrypt(encrypted)
 
-        for line in decrypted.splitlines():
-          acc = Account(**json.loads(str(line, 'utf-8')))
-          self.accountList.append(acc)
-        self.updateLists()
-      return self
-    except InvalidToken:
-      print('The password you have entered is invalid')
-      return
-    except FileNotFoundError:
-      print(f'Data file {DATA_FILE_NAME} does not exist. \n' + \
-        'It seems like this is your first time using the program.')
-      self.masterPassword = input("Please setup a password: ")
-      return self
+      for line in decrypted.splitlines():
+        acc = Account(**json.loads(str(line, 'utf-8')))
+        self.accountList.append(acc)
+      self.updateLists()
+    return self
 
   # save data to file
   def save(self):
     self.sortAlphaNumeric()
     self.updateLists()
-    with open(DATA_FILE_NAME, 'wb') as outputFile:
+    with open(self.DATA_FILE_NAME, 'wb') as outputFile:
       json_string = ''
       for acc in self.accountList:
         json_string += json.dumps(acc.__dict__) + '\n'
@@ -154,6 +146,8 @@ class Database():
 
   # given an Account, returns Account edited
   def editPhone(self, account, text):
+    if not text:
+      raise EmptyInputException
     if not self.isPhoneNumber(text):
       print(f'Text entered {text} is not of phone number format (accepts numbers and "+" only)')
       return account
@@ -186,6 +180,8 @@ class Database():
 
   # given a text, check if is of phone format:
   def isPhoneNumber(self, text):
+    if not text:
+      return
     if text[0] == '+':
       text = text[1:]
     return text.isnumeric()
