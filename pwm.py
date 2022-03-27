@@ -424,6 +424,7 @@ def fog_focusAccount(account):
 def fo_addAccount(text):
   if not data.checkNameExists(text):
     acc = data.addAccount(Account(name=text))
+    manager.popStack(1)
     return fog_focusAccount(acc)()
   else:
     print(f'Account with name "{text}" already exists')

@@ -125,10 +125,13 @@ class Database():
 
   # given an Account, returns Account edited
   def editName(self, account, text):
+    if not text:
+      print(f'Cannot enter empty name')
     # check uniqueness
     if not self.checkNameExists(text):
       account.name = text
-    print(f'Input name {text} already exists')
+    else:
+      print(f'Input name {text} already exists')
     return account
     
   # given an Account, returns Account edited
