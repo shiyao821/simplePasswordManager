@@ -20,7 +20,7 @@ class Database():
     self.emailList = emailList
     self.passwordList = passwordList
     self.phoneList = phoneList
-    self.linkedAccountsList = linkedAccountList # entries will be the string in Account.name
+    self.linkedAccountsList = linkedAccountList # entries will be the string in Account.accountName
     self.DATA_FILE_NAME = 'accounts.data'
 
   # load data from some file in same directory
@@ -64,16 +64,16 @@ class Database():
 
   # util function for internal account list sorting
   def sortAlphaNumeric(self, reverse=False):
-    self.accountList.sort(key=lambda a: a.name, reverse=reverse)
+    self.accountList.sort(key=lambda a: a.accountName, reverse=reverse)
 
   # returns a list of Accounts containing keyword. 
   # If keyword is a single letter, checks only for first letter
   # If keyword is blank, return all. Can return empty list.
-  def filterAccountsByName(self, keyword): 
+  def filterAccountsByAccountName(self, keyword): 
     if len(keyword) == 1:
-      filteredList = filter(lambda account: keyword == account.name[0], self.accountList)
+      filteredList = filter(lambda account: keyword == account.accountName[0], self.accountList)
     else:
-      filteredList = filter(lambda account: keyword in account.name, self.accountList)
+      filteredList = filter(lambda account: keyword in account.accountName, self.accountList)
     return list(filteredList)
 
   # returns a list of Accounts using given email, assuming it exists
@@ -89,19 +89,19 @@ class Database():
   def filterAccountsByPhone(self, phone):
     return list(filter(lambda a: a.phone == phone, self.accountList))
   # returns a list of Accounts using given account name, assuming it exists
-  def filterAccountsByLinkedAccount(self, name):
-    return list(filter(lambda a: name in a.linkedAccount, self.accountList))
+  def filterAccountsByLinkedAccount(self,accountName):
+    return list(filter(lambda a:accountName in a.linkedAccount, self.accountList))
   
-  # adds a given account with a non-empty name to the database, and returns it
+  # adds a given account with a non-emptyaccountName to the database, and returns it
   def addAccount(self, account):
-    if not account.name == '':
+    if not account.accountName == '':
       self.accountList.append(account)
       self.save()
     return account
 
   # given an Account, delete it from the database
   def deleteAccount(self, account):
-    accountName = copy(account.name)
+    accountName = copy(account.accountName)
     # search for account in the actual list
     for acc in self.accountList:
       if acc == account:
@@ -112,16 +112,16 @@ class Database():
     self.save()
 
   # check if account name exists
-  def checkNameExists(self, name):
-    return name in [acc.name for acc in self.accountList]
+  def checkAccountNameExists(self, name):
+    return name in [acc.accountName for acc in self.accountList]
 
   # given an Account, returns Account edited
-  def editName(self, account, text):
+  def editaccountName(self, account, text):
     if not text:
-      print(f'Cannot enter empty name')
+      print(f'Cannot enter empty account name')
     # check uniqueness
-    if not self.checkNameExists(text):
-      account.name = text
+    if not self.checkAccountNameExists(text):
+      account.accountName = text
     else:
       print(f'Input name {text} already exists')
     return account
@@ -156,21 +156,21 @@ class Database():
     return account
     
   # given an Account, returns Account edited
-  # if name given does not currently exist in list, add
+  # if accountName given does not currently exist in list, add
   # if it currently exists in list, delete
   def editLinkedAccounts(self, account, text):
     if text in account.linkedAccount:
       account.linkedAccount.remove(text)
     else:
       # check that account exists:
-      if text not in [acc.name for acc in self.accountList]:
+      if text not in [acc.accountName for acc in self.accountList]:
         print(f'Account to be linked does not exist yet. Create it first.')
         return account
       account.linkedAccount.append(text)
     self.save()
     return account
 
-  # given an account, update the misc field. Deletes key-value pair if 'value' is empty
+  # given an account, update the miscList field. Deletes key-value pair if 'value' is empty
   def editMiscField(self, acc, field, value):
     if value == '':
       del acc.misc[field]
@@ -209,8 +209,8 @@ class Database():
           self.linkedAccountsList.append(la)
 
 class Account():
-  def __init__(self, name='', username='', email='', password='', phone='', linkedAccount=[], misc={}):
-    self.name = name
+  def __init__(self, accountName='', username='', email='', password='', phone='', linkedAccount=[], misc={}):
+    self.accountName = accountName
     self.username = username
     self.email = email
     self.password = password

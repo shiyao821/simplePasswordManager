@@ -144,11 +144,11 @@ class Manager:
     st_addAccount = State('Adding new account')
     st_addAccount.addOption(Option('Account name: ', self.fo_addAccount))
     st_deleteAccount = State('Deleting account')
-    st_searchByName = State('Search by Name')
+    st_searchByAccountName = State('Search by Account Name')
     st_checkMasterPassword = State('Changing Master Password\nYou can backtrack this process with "`"')
     st_checkMasterPassword.addOption(Option('Enter current master password: ', self.fo_checkMasterPassword, passwordInput=True))
     
-    st_home.addOption(Option('Search by Name', self.fog_nextState(st_searchByName)))
+    st_home.addOption(Option('Search by Name', self.fog_nextState(st_searchByAccountName)))
     st_home.addOption(Option('Add New Account', self.fog_nextState(st_addAccount)))
     st_home.addOption(Option('Search by Email', self.fo_getEmailList))
     st_home.addOption(Option('Search by Username', self.fo_getUsernameList))
@@ -158,8 +158,8 @@ class Manager:
     st_home.addOption(Option('Change Master Password', self.fog_nextState(st_checkMasterPassword)))
     # st_home.addOption(Option('Delete Account Entry', self.fog_nextState(st_deleteAccount))) TODO
 
-    opt_inputKeyword = Option('Enter keyword to search:', self.fo_searchByName)
-    st_searchByName.addOption(opt_inputKeyword)
+    opt_inputKeyword = Option('Enter keyword to search:', self.fo_searchByAccountName)
+    st_searchByAccountName.addOption(opt_inputKeyword)
 
     try:
       password = getpass("Please enter your password: ")
@@ -200,11 +200,11 @@ class Manager:
 
   # function object that requests for keyword input to filter data data
   # returns next state containing list of accounts filtered
-  def fo_searchByName(self, text):
-    accountList = data.filterAccountsByName(text)
+  def fo_searchByAccountName(self, text):
+    accountList = data.filterAccountsByAccountName(text)
     st_filtered = State(f'There are {len(accountList)} matches')
     for acc in accountList:
-      st_filtered.addOption(Option(acc.name, self.fog_focusAccount(acc), textInput=False))
+      st_filtered.addOption(Option(acc.accountName, self.fog_focusAccount(acc), textInput=False))
     self.pushStack(st_filtered)
 
   # returns next state containing list of accounts filtered by email
@@ -213,7 +213,7 @@ class Manager:
       accountList = data.filterAccountsByEmail(email)
       st_filtered = State(f'There are {len(accountList)} matches')
       for acc in accountList:
-        st_filtered.addOption(Option(acc.name, self.fog_focusAccount(acc), textInput=False))
+        st_filtered.addOption(Option(acc.accountName, self.fog_focusAccount(acc), textInput=False))
       self.pushStack(st_filtered)
     return outputfunc
 
@@ -230,7 +230,7 @@ class Manager:
       accountList = data.filterAccountsByUsername(username)
       st_filtered = State(f'There are {len(accountList)} matches')
       for acc in accountList:
-        st_filtered.addOption(Option(acc.name, self.fog_focusAccount(acc), textInput=False))
+        st_filtered.addOption(Option(acc.accountName, self.fog_focusAccount(acc), textInput=False))
       self.pushStack(st_filtered)
     return outputfunc
 
@@ -247,7 +247,7 @@ class Manager:
       accountList = data.filterAccountsByPassword(password)
       st_filtered = State(f'There are {len(accountList)} matches')
       for acc in accountList:
-        st_filtered.addOption(Option(acc.name, self.fog_focusAccount(acc), textInput=False))
+        st_filtered.addOption(Option(acc.accountName, self.fog_focusAccount(acc), textInput=False))
       self.pushStack(st_filtered)
     return outputfunc
 
@@ -264,7 +264,7 @@ class Manager:
       accountList = data.filterAccountsByPhone(phone)
       st_filtered = State(f'There are {len(accountList)} matches')
       for acc in accountList:
-        st_filtered.addOption(Option(acc.name, self.fog_focusAccount(acc), textInput=False))
+        st_filtered.addOption(Option(acc.accountName, self.fog_focusAccount(acc), textInput=False))
       self.pushStack(st_filtered)
     return outputfunc
 
@@ -275,13 +275,13 @@ class Manager:
       st_phoneList.addOption(Option(i, self.fog_getAccountsWithPhone(i), textInput=False))
     self.pushStack(st_phoneList)
 
-  # returns next state containing list of accounts filtered by name of linked account
-  def fog_getAccountsWithLinkedAccount(self, name):
+  # returns next state containing list of accounts filtered by accountName of linked account
+  def fog_getAccountsWithLinkedAccount(self, accountName):
     def outputfunc():
-      accountList = data.filterAccountsByLinkedAccount(name)
+      accountList = data.filterAccountsByLinkedAccount(accountName)
       st_filtered = State(f'There are {len(accountList)} matches')
       for acc in accountList:
-        st_filtered.addOption(Option(acc.name, self.fog_focusAccount(acc), textInput=False))
+        st_filtered.addOption(Option(acc.accountName, self.fog_focusAccount(acc), textInput=False))
       self.pushStack(st_filtered)
     return outputfunc
 
@@ -294,9 +294,9 @@ class Manager:
 
   # returns function object that calls data functions to change 
   # the selected field of given account
-  def fog_editName(self, account):
+  def fog_editAccountName(self, account):
     def outputfunc(text):
-      updatedAccount = data.editName(account, text)
+      updatedAccount = data.editAccountName(account, text)
       self.popStack(2)
       return self.fog_focusAccount(updatedAccount)()
     return outputfunc
@@ -333,7 +333,7 @@ class Manager:
 
   def stringifyAccount(self, account):
     return \
-      f'Account   : {account.name}\n'+ \
+      f'Account   : {account.accountName}\n'+ \
       f'username  : {account.username}\n' + \
       f'email     : {account.email}\n' + \
       f'password  : {account.password}\n' + \
@@ -361,8 +361,8 @@ class Manager:
   def fog_focusAccount(self, account):
     def outputfunc():
       st_viewAccount = State(f'{self.stringifyAccount(account)}\n\nWhat do?')
-      st_editName = State(f'Old account name: {account.name}')
-      st_editName.addOption(Option("New account name: ", self.fog_editName(account)))
+      st_editAccountName = State(f'Old account name: {account.accountName}')
+      st_editAccountName.addOption(Option("New account name: ", self.fog_editAccountName(account)))
       st_editUsername = State(f'Old account username: {account.username}')
       st_editUsername.addOption(Option("New account username: ", self.fog_editUsername(account)))
       st_editEmail = State(f'Old account email: {account.email}')
@@ -376,10 +376,10 @@ class Manager:
       st_editMisc = State(f'What field to edit / delete? (adds if not existent)')
       st_editMisc.addOption(Option('Field name: ', self.fog_chooseField(account)))
 
-      st_deleteConfirmation = State(f'Are you sure you want to delete the account for {account.name}')
+      st_deleteConfirmation = State(f'Are you sure you want to delete the account for {account.accountName}')
       st_deleteConfirmation.addOption(Option('1 = YES \\ enter = NO: ', self.fog_deleteAccount(account)))
 
-      st_viewAccount.addOption(Option('Edit Name', self.fog_nextState(st_editName)))
+      st_viewAccount.addOption(Option('Edit Account Name', self.fog_nextState(st_editAccountName)))
       st_viewAccount.addOption(Option('Edit Username', self.fog_nextState(st_editUsername)))
       st_viewAccount.addOption(Option('Edit Email', self.fog_nextState(st_editEmail)))
       st_viewAccount.addOption(Option('Edit Password', self.fog_nextState(st_editPassword)))
@@ -394,8 +394,8 @@ class Manager:
   # function object that adds an account with input name to database,
   # returns with a state focusing on data. input name must not previously exist
   def fo_addAccount(self, text):
-    if not data.checkNameExists(text):
-      acc = data.addAccount(Account(name=text))
+    if not data.checkAccountNameExists(text):
+      acc = data.addAccount(Account(accountName=text))
       self.popStack(1)
       self.fog_focusAccount(acc)()
     else:
