@@ -154,7 +154,7 @@ class Manager:
     st_home.addOption(Option('Search by Username', self.fo_getUsernameList))
     st_home.addOption(Option('Search by Password', self.fo_getPasswordList))
     st_home.addOption(Option('Search by Phone Number', self.fo_getPhoneList))
-    st_home.addOption(Option('Search by Linked Account', self.fo_getLinkedAccountList))
+    st_home.addOption(Option('Search by Linked Account', self.fo_getlinkedAccountsList))
     st_home.addOption(Option('Change Master Password', self.fog_nextState(st_checkMasterPassword)))
     # st_home.addOption(Option('Delete Account Entry', self.fog_nextState(st_deleteAccount))) TODO
 
@@ -286,11 +286,11 @@ class Manager:
     return outputfunc
 
   # function object that shows all linked accounts used in accounts
-  def fo_getLinkedAccountList(self):
-    st_linkedAccountList = State('Linked Accounts:')
+  def fo_getlinkedAccountsList(self):
+    st_linkedAccountsList = State('Linked Accounts:')
     for i in data.linkedAccountsList:
-      st_linkedAccountList.addOption(Option(i, self.fog_getAccountsWithLinkedAccount(i), textInput=False))
-    self.pushStack(st_linkedAccountList)
+      st_linkedAccountsList.addOption(Option(i, self.fog_getAccountsWithLinkedAccount(i), textInput=False))
+    self.pushStack(st_linkedAccountsList)
 
   # returns function object that calls data functions to change 
   # the selected field of given account
@@ -338,7 +338,7 @@ class Manager:
       f'email     : {account.email}\n' + \
       f'password  : {account.password}\n' + \
       f'phone     : {account.phone}\n' + \
-      f'linked Acc: {self.stringifyLinkedAccounts(account.linkedAccount)}\n' + \
+      f'linked Acc: {self.stringifyLinkedAccounts(account.linkedAccounts)}\n' + \
       f'misc:\n' + \
       f'{self.stringifyMisc(account.misc)}'
 
@@ -369,7 +369,7 @@ class Manager:
       st_editEmail.addOption(Option("New account email: ", self.fog_editEmail(account)))
       st_editPassword = State(f'Old account password: {account.password}')
       st_editPassword.addOption(Option("New account password: ", self.fog_editPassword(account)))
-      st_editLinkeAccounts = State(f'Currently linked Accounts: {account.linkedAccount}')
+      st_editLinkeAccounts = State(f'Currently linked Accounts: {account.linkedAccounts}')
       st_editLinkeAccounts.addOption(Option("Type another account name to add, write an existing name to delete\n: ", self.fog_editLinkedAccounts(account)))
       st_editPhone = State(f'Old Phone number: {account.phone}')
       st_editPhone.addOption(Option("New Phone number: ", self.fog_editPhone(account)))

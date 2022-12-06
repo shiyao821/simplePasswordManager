@@ -13,14 +13,14 @@ class EmptyInputException(Exception):
       super().__init__()
 
 class Database():
-  def __init__(self, accountList=[], emailList=[], usernameList=[], passwordList=[], phoneList=[], linkedAccountList=[]):
+  def __init__(self, accountList=[], emailList=[], usernameList=[], passwordList=[], phoneList=[], linkedAccountsList=[]):
     self.masterPassword = ''
     self.accountList = accountList
     self.usernameList = usernameList
     self.emailList = emailList
     self.passwordList = passwordList
     self.phoneList = phoneList
-    self.linkedAccountsList = linkedAccountList # entries will be the string in Account.accountName
+    self.linkedAccountsList = linkedAccountsList # entries will be the string in Account.accountName
     self.DATA_FILE_NAME = 'accounts.data'
 
   # load data from some file in same directory
@@ -89,8 +89,8 @@ class Database():
   def filterAccountsByPhone(self, phone):
     return list(filter(lambda a: a.phone == phone, self.accountList))
   # returns a list of Accounts using given account name, assuming it exists
-  def filterAccountsByLinkedAccount(self,accountName):
-    return list(filter(lambda a:accountName in a.linkedAccount, self.accountList))
+  def filterAccountsBylinkedAccounts(self,accountName):
+    return list(filter(lambda a:accountName in a.linkedAccounts, self.accountList))
   
   # adds a given account with a non-emptyaccountName to the database, and returns it
   def addAccount(self, account):
@@ -159,14 +159,14 @@ class Database():
   # if accountName given does not currently exist in list, add
   # if it currently exists in list, delete
   def editLinkedAccounts(self, account, text):
-    if text in account.linkedAccount:
-      account.linkedAccount.remove(text)
+    if text in account.linkedAccounts:
+      account.linkedAccounts.remove(text)
     else:
       # check that account exists:
       if text not in [acc.accountName for acc in self.accountList]:
         print(f'Account to be linked does not exist yet. Create it first.')
         return account
-      account.linkedAccount.append(text)
+      account.linkedAccounts.append(text)
     self.save()
     return account
 
@@ -204,16 +204,17 @@ class Database():
         self.passwordList.append(acc.password)
       if acc.phone not in self.phoneList:
         self.phoneList.append(acc.phone)
-      for la in acc.linkedAccount:
+      for la in acc.linkedAccounts:
         if la not in self.linkedAccountsList:
           self.linkedAccountsList.append(la)
 
 class Account():
-  def __init__(self, accountName='', username='', email='', password='', phone='', linkedAccount=[], misc={}):
+  def __init__(self, accountName='', username='', email='', password='', phone='', linkedAccounts=[], misc={}):
     self.accountName = accountName
     self.username = username
     self.email = email
     self.password = password
     self.phone = phone
-    self.linkedAccount = linkedAccount
+    self.linkedAccounts = linkedAccounts
     self.misc = misc
+    
