@@ -89,7 +89,7 @@ class Database():
   def filterAccountsByPhone(self, phone):
     return list(filter(lambda a: a.phone == phone, self.accountList))
   # returns a list of Accounts using given account name, assuming it exists
-  def filterAccountsBylinkedAccounts(self,accountName):
+  def filterAccountsByLinkedAccounts(self,accountName):
     return list(filter(lambda a:accountName in a.linkedAccounts, self.accountList))
   
   # adds a given account with a non-emptyaccountName to the database, and returns it

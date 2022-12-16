@@ -278,7 +278,7 @@ class Manager:
   # returns next state containing list of accounts filtered by accountName of linked account
   def fog_getAccountsWithLinkedAccount(self, accountName):
     def outputfunc():
-      accountList = data.filterAccountsByLinkedAccount(accountName)
+      accountList = data.filterAccountsByLinkedAccounts(accountName)
       st_filtered = State(f'There are {len(accountList)} matches')
       for acc in accountList:
         st_filtered.addOption(Option(acc.accountName, self.fog_focusAccount(acc), textInput=False))
