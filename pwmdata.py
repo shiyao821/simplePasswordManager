@@ -176,6 +176,7 @@ class Database():
       del acc.misc[field]
     else:
       acc.misc[field] = value
+    self.save()
     return acc
 
   # given a text, check if is of phone format:
