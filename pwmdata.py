@@ -207,6 +207,12 @@ class Database():
       for la in acc.linkedAccounts:
         if la not in self.linkedAccountsList:
           self.linkedAccountsList.append(la)
+      
+      # converts from previous data implementation where mutli-line misc items are in lists
+      for k,v in acc.misc.items():
+        if isinstance(v, list):
+          nlValue = "".join(v)
+          acc.misc[k] = nlValue
 
 class Account():
   def __init__(self, accountName='', username='', email='', password='', phone='', linkedAccounts=[], misc={}):

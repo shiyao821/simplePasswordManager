@@ -32,6 +32,7 @@ class Manager:
   maxColCharWidth = 28
   totalColumns = 4
   indent = 2
+  MISC_TITLE_MIN_CHAR_DISPLAYED = 8
 
   def __init__(self, data) -> None:
     self.stateStack = []
@@ -352,8 +353,11 @@ class Manager:
   def stringifyMisc(self, misc):
     # return str(misc)
     string = ''
-    for i in misc.items():
-      string += f'  {i[0]}{" " * max(8 - len(i[0]), 0)}: {i[1]}\n'
+    for item in misc.items():
+      multiLine = item[1].split('\n')
+      string += f'  {item[0]}{" " * max(self.MISC_TITLE_MIN_CHAR_DISPLAYED - len(item[0]), 0)}: {multiLine[0]}\n'
+      for i in range(1, len(multiLine)):
+        string += f'  {" " * self.MISC_TITLE_MIN_CHAR_DISPLAYED}  {multiLine[i]}\n'
     return string
 
   # returns function object that displays given account details, 
