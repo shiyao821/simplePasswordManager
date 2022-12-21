@@ -92,7 +92,7 @@ class Database():
   def filterAccountsByLinkedAccounts(self,accountName):
     return list(filter(lambda a:accountName in a.linkedAccounts, self.accountList))
   
-  # adds a given account with a non-emptyaccountName to the database, and returns it
+  # adds a given account with a non-empty accountName to the database, and returns it
   def addAccount(self, account):
     if not account.accountName == '':
       self.accountList.append(account)
@@ -116,7 +116,7 @@ class Database():
     return name in [acc.accountName for acc in self.accountList]
 
   # given an Account, returns Account edited
-  def editaccountName(self, account, text):
+  def editAccountName(self, account, text):
     if not text:
       print(f'Cannot enter empty account name')
     # check uniqueness
