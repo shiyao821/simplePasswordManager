@@ -215,6 +215,10 @@ class Database():
           nlValue = "".join(v)
           acc.misc[k] = nlValue
 
+  def updateMasterPassword(self, password):
+    self.masterPassword = password
+    self.save()
+
 class Account():
   def __init__(self, accountName='', username='', email='', password='', phone='', linkedAccounts=[], misc={}):
     self.accountName = accountName

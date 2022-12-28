@@ -184,6 +184,10 @@ class Manager:
       print('The password you have entered is invalid')
 
   def fo_enterNewMasterPassword(self, newPassword):
+    if len(newPassword) == 0:
+      print('New password must not be empty')
+      self.fo_home()
+      return
     st_confirmNewPass = State('Confirm the new password')
     st_confirmNewPass.addOption(Option('Re-enter new master password', self.fog_confirmNewMasterPassword(newPassword), passwordInput=True))
     self.pushStack(st_confirmNewPass)
@@ -192,7 +196,8 @@ class Manager:
   def fog_confirmNewMasterPassword(self, password):
     def outputfunc(text):    
       if text == password:
-        data.masterPassword = password
+        data.updateMasterPassword(password)
+        print('Master password updated')
       else:
         print('password entered does not match')
       # back to home state regardless of match
