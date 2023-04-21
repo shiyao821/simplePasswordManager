@@ -404,9 +404,12 @@ class Manager:
   # returns with a state focusing on data. input name must not previously exist
   def fo_addAccount(self, text):
     if not data.checkAccountNameExists(text):
-      acc = data.addAccount(Account(accountName=text))
+      new_acc = Account(accountName=text)
+      # print(f'Newly created: \n {self.stringifyAccount(new_acc)}')
+      added_acc = data.addAccount(new_acc)
+      # print(f'account added: \n {self.stringifyAccount(added_acc)}')
       self.popStack(1)
-      self.fog_focusAccount(acc)()
+      self.fog_focusAccount(added_acc)()
     else:
       print(f'Account with name "{text}" already exists')
 
