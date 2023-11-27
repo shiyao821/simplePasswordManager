@@ -32,7 +32,7 @@ class Manager:
   maxColCharWidth = 28
   totalColumns = 4
   indent = 2
-  MISC_TITLE_MIN_CHAR_DISPLAYED = 8
+  MISC_TITLE_MIN_CHAR_DISPLAYED = 9
 
   def __init__(self, data) -> None:
     self.stateStack = []
@@ -337,15 +337,16 @@ class Manager:
       return self.fog_focusAccount(updatedAccount)()
     return outputfunc
 
-  def stringifyAccount(self, account):
+  def stringifyAccount(self, account: type[Account]):
     return \
-      f'Account   : {account.accountName}\n'+ \
-      f'username  : {account.username}\n' + \
-      f'email     : {account.email}\n' + \
-      f'password  : {account.password}\n' + \
-      f'phone     : {account.phone}\n' + \
-      f'linked Acc: {self.stringifyLinkedAccounts(account.linkedAccounts)}\n' + \
-      f'misc:\n' + \
+      f'Account    : {account.accountName}\n'+ \
+      f'last edited: {account.lastEdited.isoformat(sep=' ', timespec='seconds')}\n' + \
+      f'username   : {account.username}\n' + \
+      f'email      : {account.email}\n' + \
+      f'password   : {account.password}\n' + \
+      f'phone      : {account.phone}\n' + \
+      f'linked Acc : {self.stringifyLinkedAccounts(account.linkedAccounts)}\n' + \
+      f'misc       :\n' + \
       f'{self.stringifyMisc(account.misc)}'
 
   def stringifyLinkedAccounts(self, la):

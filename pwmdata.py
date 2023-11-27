@@ -1,12 +1,39 @@
 import json
+from json import JSONEncoder
 from base64 import urlsafe_b64encode
 from copy import copy
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from datetime import datetime as dt
+import datetime
 
 ### this version is to be used together with pwm.py
 # It is repurposed to serve as the data module, abstracts away data operations and removes UX operations
+
+class Account():
+  def __init__(self, accountName='', username='', email='', password='', phone='', linkedAccounts=[], misc={}, lastEdited=dt.now()):
+    self.accountName = accountName
+    self.username = username
+    self.email = email
+    self.password = password
+    self.phone = phone
+    self.linkedAccounts = linkedAccounts
+    self.misc = misc
+    self.lastEdited = lastEdited
+
+
+class DateTimeEncoder(JSONEncoder):
+        #Override the default method
+        def default(self, obj):
+            if isinstance(obj, datetime.datetime):
+                return obj.isoformat()
+
+# custom Decoder
+def DecodeDateTime(empDict):
+  if 'lastEdited' in empDict:
+    empDict["lastEdited"] = dt.fromisoformat(empDict["lastEdited"])
+  return empDict
 
 class EmptyInputException(Exception):
   def __init__(self) -> None:
@@ -15,13 +42,14 @@ class EmptyInputException(Exception):
 class Database():
   def __init__(self, accountList=[], emailList=[], usernameList=[], passwordList=[], phoneList=[], linkedAccountsList=[]):
     self.masterPassword = ''
-    self.accountList = accountList
+    self.accountList: type[list[Account]] = accountList
     self.usernameList = usernameList
     self.emailList = emailList
     self.passwordList = passwordList
     self.phoneList = phoneList
     self.linkedAccountsList = linkedAccountsList # entries will be the string in Account.accountName
     self.DATA_FILE_NAME = 'accounts.data'
+    # self.TEST_FILE_NAME = 'accounts.test'
 
   # load data from some file in same directory
   def load(self, password):
@@ -36,7 +64,7 @@ class Database():
       decrypted = fernet.decrypt(encrypted)
 
       for line in decrypted.splitlines():
-        acc = Account(**json.loads(str(line, 'utf-8')))
+        acc = Account(**json.loads(str(line, 'utf-8'), object_hook=DecodeDateTime))
         self.accountList.append(acc)
       self.updateLists()
     return self
@@ -46,9 +74,10 @@ class Database():
     self.sortAlphaNumeric()
     self.updateLists()
     with open(self.DATA_FILE_NAME, 'wb') as outputFile:
+    # with open(self.TEST_FILE_NAME, 'wb') as outputFile:
       json_string = ''
       for acc in self.accountList:
-        json_string += json.dumps(acc.__dict__) + '\n'
+        json_string += json.dumps(acc.__dict__, cls=DateTimeEncoder) + '\n'
 
       # encrypt based on self.masterPassword 
       kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=b'69420', iterations=69420)
@@ -57,6 +86,7 @@ class Database():
       
       encrypted = fernet.encrypt(bytes(json_string, 'ascii'))
       outputFile.write(encrypted)
+      # outputFile.write(json_string.encode('utf-8'))
 
   # returns number of accounts in data
   def numAccounts(self):
@@ -93,14 +123,14 @@ class Database():
     return list(filter(lambda a:accountName in a.linkedAccounts, self.accountList))
   
   # adds a given account with a non-empty accountName to the database, and returns it
-  def addAccount(self, account):
+  def addAccount(self, account: type[Account]):
     if not account.accountName == '':
       self.accountList.append(account)
       self.save()
     return account
 
   # given an Account, delete it from the database
-  def deleteAccount(self, account):
+  def deleteAccount(self, account: type[Account]):
     accountName = copy(account.accountName)
     # search for account in the actual list
     for acc in self.accountList:
@@ -116,49 +146,55 @@ class Database():
     return name in [acc.accountName for acc in self.accountList]
 
   # given an Account, returns Account edited
-  def editAccountName(self, account, text):
+  def editAccountName(self, account: type[Account], text):
     if not text:
       print(f'Cannot enter empty account name')
     # check uniqueness
     if not self.checkAccountNameExists(text):
       account.accountName = text
+      account.lastEdited = dt.now()
+      self.save()
     else:
       print(f'Input name {text} already exists')
     return account
     
   # given an Account, returns Account edited
-  def editUsername(self, account, text):
+  def editUsername(self, account: type[Account], text):
     account.username = text
+    account.lastEdited = dt.now()
     self.save()
     return account
 
   # given an Account, returns Account edited
-  def editEmail(self, account, text):
+  def editEmail(self, account: type[Account], text):
     account.email = text
+    account.lastEdited = dt.now()
     self.save()
     return account
 
   # given an Account, returns Account edited
-  def editPassword(self, account, text):
+  def editPassword(self, account: type[Account], text):
     account.password = text
+    account.lastEdited = dt.now()
     self.save()
     return account
 
   # given an Account, returns Account edited
-  def editPhone(self, account, text):
+  def editPhone(self, account: type[Account], text):
     if not text:
       raise EmptyInputException
     if not self.isPhoneNumber(text):
       print(f'Text entered {text} is not of phone number format (accepts numbers and "+" only)')
       return account
     account.phone = text
+    account.lastEdited = dt.now()
     self.save()
     return account
     
   # given an Account, returns Account edited
   # if accountName given does not currently exist in list, add
   # if it currently exists in list, delete
-  def editLinkedAccounts(self, account, text):
+  def editLinkedAccounts(self, account: type[Account], text):
     if text in account.linkedAccounts:
       account.linkedAccounts.remove(text)
     else:
@@ -167,17 +203,19 @@ class Database():
         print(f'Account to be linked does not exist yet. Create it first.')
         return account
       account.linkedAccounts.append(text)
+      account.lastEdited = dt.now()
     self.save()
     return account
 
   # given an account, update the miscList field. Deletes key-value pair if 'value' is empty
-  def editMiscField(self, acc, field, value):
+  def editMiscField(self, account: type[Account], field, value):
     if value == '':
-      del acc.misc[field]
+      del account.misc[field]
     else:
-      acc.misc[field] = value
+      account.misc[field] = value
+    account.lastEdited = dt.now()
     self.save()
-    return acc
+    return account
 
   # given a text, check if is of phone format:
   def isPhoneNumber(self, text):
@@ -218,14 +256,3 @@ class Database():
   def updateMasterPassword(self, password):
     self.masterPassword = password
     self.save()
-
-class Account():
-  def __init__(self, accountName='', username='', email='', password='', phone='', linkedAccounts=[], misc={}):
-    self.accountName = accountName
-    self.username = username
-    self.email = email
-    self.password = password
-    self.phone = phone
-    self.linkedAccounts = linkedAccounts
-    self.misc = misc
-    
