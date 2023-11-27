@@ -21,7 +21,8 @@ class Database():
     self.passwordList = passwordList
     self.phoneList = phoneList
     self.linkedAccountsList = linkedAccountsList # entries will be the string in Account.accountName
-    self.DATA_FILE_NAME = 'accounts.data'
+    self.DATA_FILE_NAME = 'accountsWithoutLastEdit.data'
+    self.TEST_FILE_NAME = 'accounts.test'
 
   # load data from some file in same directory
   def load(self, password):
@@ -45,18 +46,20 @@ class Database():
   def save(self):
     self.sortAlphaNumeric()
     self.updateLists()
-    with open(self.DATA_FILE_NAME, 'wb') as outputFile:
+    # with open(self.DATA_FILE_NAME, 'wb') as outputFile:
+    with open(self.TEST_FILE_NAME, 'wb') as outputFile:
       json_string = ''
       for acc in self.accountList:
         json_string += json.dumps(acc.__dict__) + '\n'
 
       # encrypt based on self.masterPassword 
-      kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=b'69420', iterations=69420)
-      key = urlsafe_b64encode(kdf.derive(bytes(self.masterPassword, 'utf-8')))
-      fernet = Fernet(key)
+      # kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=b'69420', iterations=69420)
+      # key = urlsafe_b64encode(kdf.derive(bytes(self.masterPassword, 'utf-8')))
+      # fernet = Fernet(key)
       
-      encrypted = fernet.encrypt(bytes(json_string, 'ascii'))
-      outputFile.write(encrypted)
+      # encrypted = fernet.encrypt(bytes(json_string, 'ascii'))
+      # outputFile.write(encrypted)
+      outputFile.write(json_string.encode('utf-8'))
 
   # returns number of accounts in data
   def numAccounts(self):
