@@ -151,12 +151,21 @@ class Database():
       print(f'Cannot enter empty account name')
     # check uniqueness
     if not self.checkAccountNameExists(text):
-      account.accountName = text
+      oldName, account.accountName = account.accountName, text
       account.lastEdited = dt.now()
+      self.accountList
+      self.updateAllLinkedAccountInstances(oldName, text)
       self.save()
     else:
       print(f'Input name {text} already exists')
     return account
+  
+  def updateAllLinkedAccountInstances(self, oldName, newName):
+    for acc in self.accountList:
+      if oldName in acc.linkedAccounts:
+        # print(f'linkedAccount found in {acc.accountName}: {acc.linkedAccounts}')
+        newAccounts = list(map(lambda la: newName if la == oldName else la, acc.linkedAccounts))
+        acc.linkedAccounts = newAccounts
     
   # given an Account, returns Account edited
   def editUsername(self, account: type[Account], text):
