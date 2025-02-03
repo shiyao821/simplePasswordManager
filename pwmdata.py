@@ -166,6 +166,7 @@ class Database():
         # print(f'linkedAccount found in {acc.accountName}: {acc.linkedAccounts}')
         newAccounts = list(map(lambda la: newName if la == oldName else la, acc.linkedAccounts))
         acc.linkedAccounts = newAccounts
+        acc.lastEdited = dt.now()
     
   # given an Account, returns Account edited
   def editUsername(self, account: type[Account], text):
