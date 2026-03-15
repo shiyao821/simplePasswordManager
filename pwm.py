@@ -6,488 +6,361 @@ from cryptography.fernet import InvalidToken
 ### High level view:
 # States are used to facilitate going 'back' to the previous step. User input = '`'
 # Manager navigates between states using a stack
-### States can be: 
-# 1) option-choosing states 
-# - if it has > 1 option in the options list to display, user enters 1/2/3/4 etc
-# - if it has exactly 1 option. That option will be executed immediately (fast-forwarded) without needing user input. 
-# or 2) text-input states
-# - definitely only 1 option in the list, with option.textInput=True, user enters text input
-# - if option.passwordInput=True, the getpass function will be used to hide password inputs
-# a state may be dynamically generated with additional dynamic data
-### Options will contain:
-# 1) message string
-# 2) function object that can be called to execute
-# - This includes functions that manipulate the state stack / start other processes
+#
+# States can be:
+#   1) option-choosing states
+#      - if > 1 option: user enters 1/2/3... to select
+#      - if exactly 1 option: fast-forwarded without needing user input
+#   2) text-input states
+#      - exactly 1 option with option.textInput=True; user enters free text
+#      - if option.passwordInput=True, getpass() is used to hide the input
+#
+# Options contain:
+#   1) a display message string
+#   2) a function object that executes when the option is chosen
+#
+# Naming conventions:
+#   fo_  methods are function objects (used directly as callbacks)
+#   fog_ methods are function object generators (return a callback)
 
-# NOTE: currently built assuming it is ok to have function objects 
-# directly calling data data object from within
-
-### Notation:
-# st_ prefixes are states
-# fo_ prefixes are for functions to be used as function objects
-# fog_ prefixes are for functions that generate function objects
 
 class Manager:
 
-  maxColCharWidth = 28
-  totalColumns = 4
-  indent = 2
-  MISC_TITLE_MIN_CHAR_DISPLAYED = 9
+    MAX_COL_WIDTH = 28
+    TOTAL_COLUMNS = 4
+    INDENT = 2
+    MISC_TITLE_MIN_WIDTH = 9
 
-  def __init__(self, data) -> None:
-    self.stateStack = []
-    self.data = data
+    def __init__(self, data: Database) -> None:
+        self.stateStack = []
+        self.data = data
 
-  # return top item of stack
-  def viewStack(self):
-    top = len(self.stateStack) - 1
-    return self.stateStack[top]
+    def viewStack(self):
+        return self.stateStack[-1]
 
-  def pushStack(self, newState):
-    self.stateStack.append(newState)
+    def pushStack(self, state):
+        self.stateStack.append(state)
 
-  # pops stack and returns popped
-  def popStack(self, num=1):
-    for i in range(0, num):
-      self.stateStack.pop()
+    def popStack(self, num=1):
+        del self.stateStack[-num:]
 
-  def readStack(self):
-    currentState = self.viewStack()
-    print(f'\n{currentState.displayMessage}')
-    optionsLength = len(currentState.options)
-    if optionsLength == 0:
-      self.popStack()
-      return
-    # 1 Option: check if text input state. Otherwise, fast forward to option function
-    elif optionsLength == 1:
-      try:
-        option = currentState.options[0]
-        if option.textInput:
-          if option.passwordInput:
-            text = getpass(f'{option.message}')
-          else:
-            text = input(f'{option.message}')
-          if text == '`':
-            printn('"Back" registered')
+    def popStackUntil(self, leftover):
+        del self.stateStack[leftover:]
+
+    def fo_home(self):
+        self.popStackUntil(1)
+
+    def run(self):
+        while self.stateStack:
+            self.readStack()
+
+    def readStack(self):
+        currentState = self.viewStack()
+        print(f'\n{currentState.displayMessage}')
+        options = currentState.options
+
+        if not options:
             self.popStack()
             return
-          if text == '``':
+
+        if len(options) == 1:
+            option = options[0]
+            try:
+                if option.textInput:
+                    prompt_fn = getpass if option.passwordInput else input
+                    text = prompt_fn(f'{option.message}')
+                    if text == '`':
+                        printn('"Back" registered')
+                        self.popStack()
+                        return
+                    if text == '``':
+                        printn('"Exit" registered')
+                        self.popStackUntil(0)
+                        return
+                    option.execute(text)
+                else:
+                    # Single non-text option: fast-forward, pop for clean back-navigation
+                    self.popStack()
+                    option.execute()
+            except EmptyInputException:
+                print("Nothing was entered")
+                self.popStack()
+            return
+
+        # Multiple options: numbered selection
+        for n, option in enumerate(options):
+            label = str(n + 1)
+            truncated = option.message[:self.MAX_COL_WIDTH - self.INDENT - len(label) - 1]
+            padding = max(self.MAX_COL_WIDTH - self.INDENT - len(label) - len(truncated) + 1, 1)
+            print(f'{label}. {truncated}' + ' ' * padding, end='')
+            if n % self.TOTAL_COLUMNS == self.TOTAL_COLUMNS - 1:
+                print()
+        print()
+
+        text = input('(1/2/3/...) >>> ')
+        # Keyboard shortcuts for easy reach on QWERTY
+        text = {'q': '4', 'w': '5', 'e': '6', 'a': '7', 's': '8', 'd': '9'}.get(text, text)
+
+        if text.isdigit():
+            choice = int(text) - 1
+            try:
+                options[choice].execute()
+            except IndexError:
+                print('Not within options given')
+        elif text == '`':
+            printn('"Back" registered')
+            self.popStack()
+        elif text == '``':
             printn('"Exit" registered')
             self.popStackUntil(0)
-            return
-          option.execute(text)
-        # 1 Option, but not for text input -> fast forward to selection
-        # pop stack for double jump back
         else:
-          self.popStack()
-          option.execute()
-      except EmptyInputException:
-        print("Nothing was entered")
-        self.popStack()
-    # Choice input states
-    else:
-      for n, option in enumerate(currentState.options):
-        message = option.message[0:Manager.maxColCharWidth - Manager.indent - 1 - len(str(n + 1))]
-        print(f'{n + 1}. {message}' + \
-          f'{" " * max((Manager.maxColCharWidth - Manager.indent - len(str(n + 1)) - len(message) + 1), 1)}', end='')
-        if n % Manager.totalColumns == Manager.totalColumns - 1 :
-          print("")
-      print("")
-      text = input('(1/2/3/...) >>> ')
-      # duplicate keys for easy reach on qwerty keyboard  
-      numMapping = {
-        'q': '4',
-        'w': '5',
-        'e': '6',
-        'a': '7',
-        's': '8',
-        'd': '9'
-      }
-      if text in numMapping:
-        text = numMapping[text]
-    
-      if text.isdigit():
-        choice = int(text) - 1
+            print(f'Invalid input: {text}')
+
+    # --- Initialization ---
+
+    def initialization(self):
+        st_home = State('Yo sup')
+        self.pushStack(st_home)
+
+        st_addAccount = State('Adding new account')
+        st_addAccount.addOption(Option('Account name: ', self.fo_addAccount))
+
+        st_searchByName = State('Search by Account Name')
+        st_searchByName.addOption(Option('Enter keyword to search: ', self.fo_searchByAccountName))
+
+        st_checkMasterPassword = State('Changing Master Password\nYou can backtrack with "`"')
+        st_checkMasterPassword.addOption(Option('Enter current master password: ', self.fo_checkMasterPassword, passwordInput=True))
+
+        st_home.addOption(Option('Search by Name',          self.fog_nextState(st_searchByName)))
+        st_home.addOption(Option('Add New Account',         self.fog_nextState(st_addAccount)))
+        st_home.addOption(Option('Search by Email',         self.fo_getEmailList))
+        st_home.addOption(Option('Search by Username',      self.fo_getUsernameList))
+        st_home.addOption(Option('Search by Password',      self.fo_getPasswordList))
+        st_home.addOption(Option('Search by Phone Number',  self.fo_getPhoneList))
+        st_home.addOption(Option('Search by Linked Account', self.fo_getLinkedAccountsList))
+        st_home.addOption(Option('Change Master Password',  self.fog_nextState(st_checkMasterPassword)))
+
         try:
-          currentState.options[choice].execute()
-        except IndexError:
-          print('Not within options given')
-      elif text == '`':
-        printn('"Back" registered')
-        self.popStack()
-        return
-      elif text == '``':
-        printn('"Exit" registered')
-        self.popStackUntil(0)
-        return
-      else:
-        print(f'Invalid input: {text}')
+            password = getpass("Please enter your password: ")
+            self.data.load(password)
+        except InvalidToken:
+            print('The password you have entered is invalid')
+            self.popStackUntil(0)
+        except FileNotFoundError:
+            print(
+                f'Data file "{self.data.DATA_FILE_NAME}" does not exist.\n'
+                'It seems like this is your first time using the program.'
+            )
+            self.data.masterPassword = input("Please set up a password: ")
 
-  # removes all stacks until a number of leftovers
-  def popStackUntil(self, leftover):
-    while len(self.stateStack) > leftover:
-      self.popStack()
+    # --- Master password management ---
 
-  # function object that returns manager to home state
-  def fo_home(self):
-    self.popStackUntil(1)
+    def fo_checkMasterPassword(self, text):
+        if self.data.masterPassword == text:
+            st_enterNewPass = State('Authentication complete')
+            st_enterNewPass.addOption(Option('Enter new master password: ', self.fo_enterNewMasterPassword, passwordInput=True))
+            self.pushStack(st_enterNewPass)
+        else:
+            print('Incorrect password')
 
-  def run(self):
-    while len(self.stateStack) > 0:
-      self.readStack()
+    def fo_enterNewMasterPassword(self, newPassword):
+        if not newPassword:
+            print('New password must not be empty')
+            self.fo_home()
+            return
+        st_confirm = State('Confirm the new password')
+        st_confirm.addOption(Option('Re-enter new master password: ', self.fog_confirmNewMasterPassword(newPassword), passwordInput=True))
+        self.pushStack(st_confirm)
 
-  # creating the state tree from root to branches
-  def initialization(self):
-    # Home state:
-    st_home = State('Yo sup')
-    self.pushStack(st_home)
+    def fog_confirmNewMasterPassword(self, password):
+        def handler(text):
+            if text == password:
+                self.data.updateMasterPassword(password)
+                print('Master password updated')
+            else:
+                print('Passwords do not match')
+            self.fo_home()
+        return handler
 
-    st_addAccount = State('Adding new account')
-    st_addAccount.addOption(Option('Account name: ', self.fo_addAccount))
-    st_deleteAccount = State('Deleting account')
-    st_searchByAccountName = State('Search by Account Name')
-    st_checkMasterPassword = State('Changing Master Password\nYou can backtrack this process with "`"')
-    st_checkMasterPassword.addOption(Option('Enter current master password: ', self.fo_checkMasterPassword, passwordInput=True))
-    
-    st_home.addOption(Option('Search by Name', self.fog_nextState(st_searchByAccountName)))
-    st_home.addOption(Option('Add New Account', self.fog_nextState(st_addAccount)))
-    st_home.addOption(Option('Search by Email', self.fo_getEmailList))
-    st_home.addOption(Option('Search by Username', self.fo_getUsernameList))
-    st_home.addOption(Option('Search by Password', self.fo_getPasswordList))
-    st_home.addOption(Option('Search by Phone Number', self.fo_getPhoneList))
-    st_home.addOption(Option('Search by Linked Account', self.fo_getlinkedAccountsList))
-    st_home.addOption(Option('Change Master Password', self.fog_nextState(st_checkMasterPassword)))
-    # st_home.addOption(Option('Delete Account Entry', self.fog_nextState(st_deleteAccount))) TODO
+    # --- Account search / filtering ---
 
-    opt_inputKeyword = Option('Enter keyword to search:', self.fo_searchByAccountName)
-    st_searchByAccountName.addOption(opt_inputKeyword)
+    def fo_searchByAccountName(self, text):
+        self._push_account_list_state(self.data.filterAccountsByAccountName(text))
 
-    try:
-      password = getpass("Please enter your password: ")
-      self.data.load(password)
-    except InvalidToken:
-      print('The password you have entered is invalid')
-      self.popStackUntil(0)
-    except FileNotFoundError:
-      print(f'Data file {self.data.DATA_FILE_NAME} does not exist. \n' + \
-        'It seems like this is your first time using the program.')
-      self.masterPassword = input("Please setup a password: ")
+    def fo_getEmailList(self):
+        self._push_filtered_by_field('Emails:', self.data.emailList, self.data.filterAccountsByEmail)
 
+    def fo_getUsernameList(self):
+        self._push_filtered_by_field('Usernames:', self.data.usernameList, self.data.filterAccountsByUsername)
 
-  # function object that checks current master password for authentication
-  def fo_checkMasterPassword(self, text):
-    if data.masterPassword == text:
-      st_enterNewPass = State('Authentication Complete')
-      st_enterNewPass.addOption(Option('Enter new master password: ', self.fo_enterNewMasterPassword, passwordInput=True))
-      self.pushStack(st_enterNewPass)
-    else:
-      print('The password you have entered is invalid')
+    def fo_getPasswordList(self):
+        self._push_filtered_by_field('Passwords:', self.data.passwordList, self.data.filterAccountsByPassword)
 
-  def fo_enterNewMasterPassword(self, newPassword):
-    if len(newPassword) == 0:
-      print('New password must not be empty')
-      self.fo_home()
-      return
-    st_confirmNewPass = State('Confirm the new password')
-    st_confirmNewPass.addOption(Option('Re-enter new master password', self.fog_confirmNewMasterPassword(newPassword), passwordInput=True))
-    self.pushStack(st_confirmNewPass)
+    def fo_getPhoneList(self):
+        self._push_filtered_by_field('Phone Numbers:', self.data.phoneList, self.data.filterAccountsByPhone)
 
-  # function object generator that asks for password again for confirmation
-  def fog_confirmNewMasterPassword(self, password):
-    def outputfunc(text):    
-      if text == password:
-        data.updateMasterPassword(password)
-        print('Master password updated')
-      else:
-        print('password entered does not match')
-      # back to home state regardless of match
-      self.fo_home()
-    return outputfunc
+    def fo_getLinkedAccountsList(self):
+        self._push_filtered_by_field('Linked Accounts:', self.data.linkedAccountsList, self.data.filterAccountsByLinkedAccounts)
 
-  # function object that requests for keyword input to filter data data
-  # returns next state containing list of accounts filtered
-  def fo_searchByAccountName(self, text):
-    accountList = data.filterAccountsByAccountName(text)
-    st_filtered = State(f'There are {len(accountList)} matches')
-    for acc in accountList:
-      st_filtered.addOption(Option(acc.accountName, self.fog_focusAccount(acc), textInput=False))
-    self.pushStack(st_filtered)
+    def _push_account_list_state(self, accounts):
+        """Push a state listing the given accounts as selectable options."""
+        st = State(f'There are {len(accounts)} matches')
+        for acc in accounts:
+            st.addOption(Option(acc.accountName, self.fog_focusAccount(acc), textInput=False))
+        self.pushStack(st)
 
-  # returns next state containing list of accounts filtered by email
-  def fog_getAccountsWithEmail(self, email):
-    def outputfunc():
-      accountList = data.filterAccountsByEmail(email)
-      st_filtered = State(f'There are {len(accountList)} matches')
-      for acc in accountList:
-        st_filtered.addOption(Option(acc.accountName, self.fog_focusAccount(acc), textInput=False))
-      self.pushStack(st_filtered)
-    return outputfunc
+    def _push_filtered_by_field(self, title, items, filter_func):
+        """Push a state listing items; selecting one shows accounts matching that item."""
+        st = State(title)
+        for item in items:
+            def make_handler(val):
+                def handler():
+                    self._push_account_list_state(filter_func(val))
+                return handler
+            st.addOption(Option(item, make_handler(item), textInput=False))
+        self.pushStack(st)
 
-  # function object that shows all emails used in accounts
-  def fo_getEmailList(self):
-    st_emailList = State('Emails:')
-    for email in data.emailList:
-      st_emailList.addOption(Option(email, self.fog_getAccountsWithEmail(email), textInput=False))
-    self.pushStack(st_emailList)
+    # --- Account view & editing ---
 
-  # returns next state containing list of accounts filtered by username
-  def fog_getAccountsWithUsername(self, username):
-    def outputfunc():
-      accountList = data.filterAccountsByUsername(username)
-      st_filtered = State(f'There are {len(accountList)} matches')
-      for acc in accountList:
-        st_filtered.addOption(Option(acc.accountName, self.fog_focusAccount(acc), textInput=False))
-      self.pushStack(st_filtered)
-    return outputfunc
+    def fog_focusAccount(self, account):
+        def outputfunc():
+            st_view = State(f'{self.stringifyAccount(account)}\n\nWhat do?')
 
-  # function object that shows all usernames used in accounts
-  def fo_getUsernameList(self):
-    st_usernameList = State('Usernames:')
-    for i in data.usernameList:
-      st_usernameList.addOption(Option(i, self.fog_getAccountsWithUsername(i), textInput=False))
-    self.pushStack(st_usernameList)
+            st_editName     = State(f'Old account name: {account.accountName}')
+            st_editUsername = State(f'Old username: {account.username}')
+            st_editEmail    = State(f'Old email: {account.email}')
+            st_editPassword = State(f'Old password: {account.password}')
+            st_editPhone    = State(f'Old phone number: {account.phone}')
+            st_editLinked   = State(f'Currently linked accounts: {account.linkedAccounts}')
+            st_editMisc     = State('What field to edit / delete? (adds field if it does not exist)')
 
-  # returns next state containing list of accounts filtered by password
-  def fog_getAccountsWithPassword(self, password):
-    def outputfunc():
-      accountList = data.filterAccountsByPassword(password)
-      st_filtered = State(f'There are {len(accountList)} matches')
-      for acc in accountList:
-        st_filtered.addOption(Option(acc.accountName, self.fog_focusAccount(acc), textInput=False))
-      self.pushStack(st_filtered)
-    return outputfunc
+            st_editName.addOption(Option('New account name: ',       self._make_field_editor(account, self.data.editAccountName)))
+            st_editUsername.addOption(Option('New username: ',       self._make_field_editor(account, self.data.editUsername)))
+            st_editEmail.addOption(Option('New email: ',             self._make_field_editor(account, self.data.editEmail)))
+            st_editPassword.addOption(Option('New password: ',       self._make_field_editor(account, self.data.editPassword)))
+            st_editPhone.addOption(Option('New phone number: ',      self._make_field_editor(account, self.data.editPhone)))
+            st_editLinked.addOption(Option('Account to add/remove: ', self._make_field_editor(account, self.data.editLinkedAccounts)))
+            st_editMisc.addOption(Option('Field name: ',             self.fog_chooseField(account)))
 
-  # function object that shows all passwords used in accounts
-  def fo_getPasswordList(self):
-    st_passwordList = State('Passwords:')
-    for i in data.passwordList:
-      st_passwordList.addOption(Option(i, self.fog_getAccountsWithPassword(i), textInput=False))
-    self.pushStack(st_passwordList)
-    
-  # returns next state containing list of accounts filtered by phone number
-  def fog_getAccountsWithPhone(self, phone):
-    def outputfunc():
-      accountList = data.filterAccountsByPhone(phone)
-      st_filtered = State(f'There are {len(accountList)} matches')
-      for acc in accountList:
-        st_filtered.addOption(Option(acc.accountName, self.fog_focusAccount(acc), textInput=False))
-      self.pushStack(st_filtered)
-    return outputfunc
+            st_deleteConfirm = State(f'Are you sure you want to delete "{account.accountName}"?')
+            st_deleteConfirm.addOption(Option('Enter 1 to confirm, anything else to cancel: ', self.fog_deleteAccount(account)))
 
-  # function object that shows all passwords used in accounts
-  def fo_getPhoneList(self):
-    st_phoneList = State('Phone Numbers:')
-    for i in data.phoneList:
-      st_phoneList.addOption(Option(i, self.fog_getAccountsWithPhone(i), textInput=False))
-    self.pushStack(st_phoneList)
+            st_view.addOption(Option('Edit Account Name',    self.fog_nextState(st_editName)))
+            st_view.addOption(Option('Edit Username',        self.fog_nextState(st_editUsername)))
+            st_view.addOption(Option('Edit Email',           self.fog_nextState(st_editEmail)))
+            st_view.addOption(Option('Edit Password',        self.fog_nextState(st_editPassword)))
+            st_view.addOption(Option('Edit Phone Number',    self.fog_nextState(st_editPhone)))
+            st_view.addOption(Option('Edit Linked Accounts', self.fog_nextState(st_editLinked)))
+            st_view.addOption(Option('Edit Misc Info',       self.fog_nextState(st_editMisc)))
+            st_view.addOption(Option('Delete Account',       self.fog_nextState(st_deleteConfirm)))
+            st_view.addOption(Option('Exit',                 self.fo_home))
+            self.pushStack(st_view)
+        return outputfunc
 
-  # returns next state containing list of accounts filtered by accountName of linked account
-  def fog_getAccountsWithLinkedAccount(self, accountName):
-    def outputfunc():
-      accountList = data.filterAccountsByLinkedAccounts(accountName)
-      st_filtered = State(f'There are {len(accountList)} matches')
-      for acc in accountList:
-        st_filtered.addOption(Option(acc.accountName, self.fog_focusAccount(acc), textInput=False))
-      self.pushStack(st_filtered)
-    return outputfunc
+    def _make_field_editor(self, account, edit_func):
+        """Return a callback that calls edit_func, then re-focuses the updated account."""
+        def handler(text):
+            updated = edit_func(account, text)
+            self.popStack(2)
+            self.fog_focusAccount(updated)()
+        return handler
 
-  # function object that shows all linked accounts used in accounts
-  def fo_getlinkedAccountsList(self):
-    st_linkedAccountsList = State('Linked Accounts:')
-    for i in data.linkedAccountsList:
-      st_linkedAccountsList.addOption(Option(i, self.fog_getAccountsWithLinkedAccount(i), textInput=False))
-    self.pushStack(st_linkedAccountsList)
+    def fo_addAccount(self, text):
+        if self.data.checkAccountNameExists(text):
+            print(f'Account with name "{text}" already exists')
+            return
+        new_acc = Account(accountName=text)
+        added_acc = self.data.addAccount(new_acc)
+        self.popStack(1)
+        self.fog_focusAccount(added_acc)()
 
-  # returns function object that calls data functions to change 
-  # the selected field of given account
-  def fog_editAccountName(self, account):
-    def outputfunc(text):
-      updatedAccount = data.editAccountName(account, text)
-      self.popStack(2)
-      return self.fog_focusAccount(updatedAccount)()
-    return outputfunc
-  def fog_editEmail(self, account):
-    def outputfunc(text):
-      updatedAccount = data.editEmail(account, text)
-      self.popStack(2)
-      return self.fog_focusAccount(updatedAccount)()
-    return outputfunc
-  def fog_editUsername(self, account):
-    def outputfunc(text):
-      updatedAccount = data.editUsername(account, text)
-      self.popStack(2)
-      return self.fog_focusAccount(updatedAccount)()
-    return outputfunc
-  def fog_editPassword(self, account):
-    def outputfunc(text):
-      updatedAccount = data.editPassword(account, text)
-      self.popStack(2)
-      return self.fog_focusAccount(updatedAccount)()
-    return outputfunc
-  def fog_editPhone(self, account):
-    def outputfunc(text):
-      updatedAccount = data.editPhone(account, text)
-      self.popStack(2)
-      return self.fog_focusAccount(updatedAccount)()
-    return outputfunc
-  def fog_editLinkedAccounts(self, account):
-    def outputfunc(text):
-      updatedAccount = data.editLinkedAccounts(account, text)
-      self.popStack(2)
-      return self.fog_focusAccount(updatedAccount)()
-    return outputfunc
+    def fog_deleteAccount(self, acc):
+        def handler(confirmation):
+            if confirmation == '1':
+                self.data.deleteAccount(acc)
+                self.fo_home()
+        return handler
 
-  def stringifyAccount(self, account: type[Account]):
-    return \
-      f'Account    : {account.accountName}\n'+ \
-      f'last edited: {account.lastEdited.isoformat(sep=' ', timespec='seconds')}\n' + \
-      f'username   : {account.username}\n' + \
-      f'email      : {account.email}\n' + \
-      f'password   : {account.password}\n' + \
-      f'phone      : {account.phone}\n' + \
-      f'linked Acc : {self.stringifyLinkedAccounts(account.linkedAccounts)}\n' + \
-      f'misc       :\n' + \
-      f'{self.stringifyMisc(account.misc)}'
+    def fog_chooseField(self, acc):
+        def handler(field):
+            if field in acc.misc:
+                st = State(f'Old value: {acc.misc[field]}')
+                st.addOption(Option('New value: ', self.fog_editField(acc, field)))
+            else:
+                st = State(f'Adding new field: {field}')
+                st.addOption(Option('Value: ', self.fog_editField(acc, field)))
+            self.pushStack(st)
+        return handler
 
-  def stringifyLinkedAccounts(self, la):
-    output = ''
-    for a in la:
-      output += a + ', '
-    return output[:-2]
+    def fog_editField(self, acc, field):
+        def handler(value):
+            updated = self.data.editMiscField(acc, field, value)
+            self.popStack(3)
+            self.fog_focusAccount(updated)()
+        return handler
 
-  # returns a string of the dict-type misc information variable to be printed
-  def stringifyMisc(self, misc):
-    # return str(misc)
-    string = ''
-    for item in misc.items():
-      multiLine = item[1].split('\n')
-      string += f'  {item[0]}{" " * max(self.MISC_TITLE_MIN_CHAR_DISPLAYED - len(item[0]), 0)}: {multiLine[0]}\n'
-      for i in range(1, len(multiLine)):
-        string += f'  {" " * self.MISC_TITLE_MIN_CHAR_DISPLAYED}  {multiLine[i]}\n'
-    return string
+    def fog_nextState(self, next_state):
+        def handler():
+            self.pushStack(next_state)
+        return handler
 
-  # returns function object that displays given account details, 
-  # with next state that edits or exits
-  def fog_focusAccount(self, account):
-    def outputfunc():
-      st_viewAccount = State(f'{self.stringifyAccount(account)}\n\nWhat do?')
-      st_editAccountName = State(f'Old account name: {account.accountName}')
-      st_editAccountName.addOption(Option("New account name: ", self.fog_editAccountName(account)))
-      st_editUsername = State(f'Old account username: {account.username}')
-      st_editUsername.addOption(Option("New account username: ", self.fog_editUsername(account)))
-      st_editEmail = State(f'Old account email: {account.email}')
-      st_editEmail.addOption(Option("New account email: ", self.fog_editEmail(account)))
-      st_editPassword = State(f'Old account password: {account.password}')
-      st_editPassword.addOption(Option("New account password: ", self.fog_editPassword(account)))
-      st_editLinkeAccounts = State(f'Currently linked Accounts: {account.linkedAccounts}')
-      st_editLinkeAccounts.addOption(Option("Type another account name to add, write an existing name to delete\n: ", self.fog_editLinkedAccounts(account)))
-      st_editPhone = State(f'Old Phone number: {account.phone}')
-      st_editPhone.addOption(Option("New Phone number: ", self.fog_editPhone(account)))
-      st_editMisc = State(f'What field to edit / delete? (adds if not existent)')
-      st_editMisc.addOption(Option('Field name: ', self.fog_chooseField(account)))
+    # --- String formatting ---
 
-      st_deleteConfirmation = State(f'Are you sure you want to delete the account for {account.accountName}')
-      st_deleteConfirmation.addOption(Option('1 = YES \\ enter = NO: ', self.fog_deleteAccount(account)))
+    def stringifyAccount(self, account: Account) -> str:
+        return (
+            f'Account    : {account.accountName}\n'
+            f'last edited: {account.lastEdited.isoformat(sep=" ", timespec="seconds")}\n'
+            f'username   : {account.username}\n'
+            f'email      : {account.email}\n'
+            f'password   : {account.password}\n'
+            f'phone      : {account.phone}\n'
+            f'linked Acc : {", ".join(account.linkedAccounts)}\n'
+            f'misc       :\n'
+            f'{self.stringifyMisc(account.misc)}'
+        )
 
-      st_viewAccount.addOption(Option('Edit Account Name', self.fog_nextState(st_editAccountName)))
-      st_viewAccount.addOption(Option('Edit Username', self.fog_nextState(st_editUsername)))
-      st_viewAccount.addOption(Option('Edit Email', self.fog_nextState(st_editEmail)))
-      st_viewAccount.addOption(Option('Edit Password', self.fog_nextState(st_editPassword)))
-      st_viewAccount.addOption(Option('Edit Phone Number', self.fog_nextState(st_editPhone)))
-      st_viewAccount.addOption(Option('Edit LinkedAccounts', self.fog_nextState(st_editLinkeAccounts)))
-      st_viewAccount.addOption(Option('Edit Misc info', self.fog_nextState(st_editMisc)))
-      st_viewAccount.addOption(Option('Delete Account', self.fog_nextState(st_deleteConfirmation)))
-      st_viewAccount.addOption(Option('Exit', self.fo_home))
-      self.pushStack(st_viewAccount)
-    return outputfunc
+    def stringifyMisc(self, misc: dict) -> str:
+        lines = []
+        for key, value in misc.items():
+            parts = value.split('\n')
+            padding = ' ' * max(self.MISC_TITLE_MIN_WIDTH - len(key), 0)
+            lines.append(f'  {key}{padding}: {parts[0]}')
+            for part in parts[1:]:
+                lines.append(f'  {" " * self.MISC_TITLE_MIN_WIDTH}  {part}')
+        return '\n'.join(lines) + ('\n' if lines else '')
 
-  # function object that adds an account with input name to database,
-  # returns with a state focusing on data. input name must not previously exist
-  def fo_addAccount(self, text):
-    if not data.checkAccountNameExists(text):
-      new_acc = Account(accountName=text)
-      # print(f'Newly created: \n {self.stringifyAccount(new_acc)}')
-      added_acc = data.addAccount(new_acc)
-      # print(f'account added: \n {self.stringifyAccount(added_acc)}')
-      self.popStack(1)
-      self.fog_focusAccount(added_acc)()
-    else:
-      print(f'Account with name "{text}" already exists')
-
-  # returns a function object that takes 1 as input confirmation to delete selected acc
-  def fog_deleteAccount(self, acc):
-    def outputfunc(input):
-      if input == '1':
-        data.deleteAccount(acc)
-        self.fo_home()
-    return outputfunc
-
-  # returns a function object that asks for field to edit
-  # field exists: next state asks for new value, field doesn't exist: add key
-  def fog_chooseField(self, acc):
-    def outputfunc(field):
-      if field in acc.misc:
-        st_editField = State(f'Old value: {acc.misc[field]}')
-        st_editField.addOption(Option('New value: ', self.fog_editField(acc, field)))
-        self.pushStack(st_editField)
-      else:
-        st_addField = State(f'To add field: {field}')
-        st_addField.addOption(Option('Value: ', self.fog_editField(acc, field)))
-        self.pushStack(st_addField)
-    return outputfunc
-
-  # generates function object updates the misc field with requested value
-  # if value is empty, field is deleted. Handled internally by data
-  def fog_editField(self, acc, field):
-    def outputfunc(value):
-      updatedAcc = data.editMiscField(acc, field, value)
-      self.popStack(3)
-      self.fog_focusAccount(updatedAcc)()
-    return outputfunc
-
-  # returns a function object that returns the next state
-  def fog_nextState(self, nextstate):
-    def outputfunc():
-      self.pushStack(nextstate)
-    return outputfunc
 
 class State:
-  def __init__(self, displayMessage) -> None:
-    self.displayMessage = displayMessage
-    self.options = [] # initially empty
+    def __init__(self, displayMessage: str) -> None:
+        self.displayMessage = displayMessage
+        self.options: list['Option'] = []
 
-  def addOption(self, option):
-    self.options.append(option)
+    def addOption(self, option: 'Option'):
+        self.options.append(option)
+
 
 class Option:
-  def __init__(self, message, functionObj, textInput=True, passwordInput=False) -> None:
-    if type(functionObj) != MethodType and type(functionObj) != FunctionType:
-      raise TypeError("Option: Function Object input is of wrong type")
-    self.message = message
-    self.functionObj = functionObj
-    self.textInput = textInput
-    self.passwordInput = passwordInput
+    def __init__(self, message: str, functionObj, textInput=True, passwordInput=False) -> None:
+        if not isinstance(functionObj, (MethodType, FunctionType)):
+            raise TypeError("Option: functionObj must be a function or method")
+        self.message = message
+        self.functionObj = functionObj
+        self.textInput = textInput
+        self.passwordInput = passwordInput
 
-  def execute(self, *args):
-    if args:
-      return self.functionObj(*args)
-    return self.functionObj()
+    def execute(self, *args):
+        return self.functionObj(*args) if args else self.functionObj()
 
-### UTIL Functions
 
-# wrapper to start a new print block on CLI
 def printn(text):
-  print(f'\n{text}')
+    """Print with a preceding newline."""
+    print(f'\n{text}')
 
-### end of UTIL Functions
 
 if __name__ == '__main__':
-
-  # Init Options and States
-  print('Password Manager running...')
-  data = Database()
-  manager = Manager(data)
-  manager.initialization()
-  manager.run()
-
-  print("Exiting Password Manager")
+    print('Password Manager running...')
+    data = Database()
+    manager = Manager(data)
+    manager.initialization()
+    manager.run()
+    print("Exiting Password Manager")
