@@ -1,3 +1,4 @@
+import os
 import json
 from json import JSONEncoder
 from base64 import urlsafe_b64encode
@@ -5,19 +6,50 @@ from copy import copy
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.primitives.kdf.argon2 import Argon2id
 from datetime import datetime as dt
 import datetime
 
 ### Data module for pwm.py
 # Abstracts data operations away from UX concerns.
 
-_KDF_SALT = b'69420'
-_KDF_ITERATIONS = 69420
+# --- File format ---
+# New format:  [4-byte magic][32-byte random salt][Fernet ciphertext]
+# Legacy format: raw Fernet ciphertext (detected by absence of magic header)
+_FILE_MAGIC  = b'PWM\x01'
+_SALT_LENGTH = 32
+
+# Legacy constants — kept only for reading old files
+_LEGACY_SALT           = b'69420'
+_LEGACY_KDF_ITERATIONS = 69420
 
 
-def derive_key(password: str) -> bytes:
-    kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=_KDF_SALT, iterations=_KDF_ITERATIONS)
+def _derive_key_legacy(password: str) -> bytes:
+    """PBKDF2-based key derivation. Used only to decrypt legacy data files."""
+    kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=_LEGACY_SALT, iterations=_LEGACY_KDF_ITERATIONS)
     return urlsafe_b64encode(kdf.derive(password.encode('utf-8')))
+
+
+def derive_key(password: str, salt: bytes) -> bytes:
+    """Argon2id key derivation. salt must be a 32-byte random value."""
+    kdf = Argon2id(salt=salt, length=32, iterations=3, lanes=4, memory_cost=65536)
+    return urlsafe_b64encode(kdf.derive(password.encode('utf-8')))
+
+
+def decrypt_file_data(raw: bytes, password: str) -> tuple[bytes, bytes | None]:
+    """
+    Decrypt raw file bytes using the appropriate format.
+    Returns (plaintext, salt). salt is None for legacy-format files — a fresh
+    salt will be generated automatically on the next save.
+    """
+    if raw[:len(_FILE_MAGIC)] == _FILE_MAGIC:
+        offset    = len(_FILE_MAGIC)
+        salt      = raw[offset : offset + _SALT_LENGTH]
+        ciphertext = raw[offset + _SALT_LENGTH :]
+        return Fernet(derive_key(password, salt)).decrypt(ciphertext), salt
+    else:
+        # Legacy format: raw Fernet token encrypted with PBKDF2 + hardcoded salt
+        return Fernet(_derive_key_legacy(password)).decrypt(raw), None
 
 
 class Account:
@@ -54,6 +86,7 @@ class Database:
 
     def __init__(self):
         self.masterPassword = ''
+        self._salt: bytes | None = None
         self.accountList: list[Account] = []
         self.usernameList: list[str] = []
         self.emailList: list[str] = []
@@ -63,22 +96,33 @@ class Database:
 
     def load(self, password: str):
         with open(self.DATA_FILE_NAME, 'rb') as f:
-            encrypted = f.read()
+            raw = f.read()
         self.masterPassword = password
-        decrypted = Fernet(derive_key(password)).decrypt(encrypted)
+        decrypted, salt = decrypt_file_data(raw, password)
+        if salt is None:
+            # Legacy file detected — generate a new salt and migrate immediately
+            print("Migrating data file to new secure format (Argon2id + random salt)...")
+            self._salt = os.urandom(_SALT_LENGTH)
+        else:
+            self._salt = salt
         for line in decrypted.splitlines():
             acc = Account(**json.loads(line.decode('utf-8'), object_hook=decode_datetime))
             self.accountList.append(acc)
         self.updateLists()
+        if salt is None:
+            self.save()
+            print("Migration complete.")
         return self
 
     def save(self):
         self.sortAlphaNumeric()
         self.updateLists()
+        if self._salt is None:
+            self._salt = os.urandom(_SALT_LENGTH)
         json_lines = '\n'.join(json.dumps(acc.__dict__, cls=DateTimeEncoder) for acc in self.accountList) + '\n'
-        encrypted = Fernet(derive_key(self.masterPassword)).encrypt(json_lines.encode('ascii'))
+        encrypted = Fernet(derive_key(self.masterPassword, self._salt)).encrypt(json_lines.encode('ascii'))
         with open(self.DATA_FILE_NAME, 'wb') as f:
-            f.write(encrypted)
+            f.write(_FILE_MAGIC + self._salt + encrypted)
 
     def numAccounts(self) -> int:
         return len(self.accountList)

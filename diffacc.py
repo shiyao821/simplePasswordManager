@@ -1,16 +1,14 @@
 import json
-from cryptography.fernet import Fernet
-from pwmdata import Account, decode_datetime, DateTimeEncoder, derive_key
+from pwmdata import Account, decode_datetime, DateTimeEncoder, decrypt_file_data
 
 FILE_NAME_A = 'accounts.data'
 FILE_NAME_B = 'accountsfromphone.data'
-OUTPUT_FILE_NAME = 'compare.result'
 
 
 def load(filename, password) -> dict[str, Account]:
     with open(filename, 'rb') as f:
-        encrypted = f.read()
-    decrypted = Fernet(derive_key(password)).decrypt(encrypted)
+        raw = f.read()
+    decrypted, _ = decrypt_file_data(raw, password)
     accounts = {}
     for line in decrypted.splitlines():
         acc = Account(**json.loads(line.decode('utf-8'), object_hook=decode_datetime))
@@ -27,31 +25,27 @@ def compare(a: dict[str, Account], b: dict[str, Account]):
     def acc_json(acc):
         return json.dumps(acc.__dict__, cls=DateTimeEncoder)
 
-    output = ''
-    output += f'{len(exclusive_a)} accounts exclusive to file {FILE_NAME_A}\n'
+    print(f'{len(exclusive_a)} accounts exclusive to file {FILE_NAME_A}')
     for acc in exclusive_a:
-        output += acc_json(acc) + '\n'
-    output += '\n'
+        print(acc_json(acc))
+    print()
 
-    output += f'{len(exclusive_b)} accounts exclusive to file {FILE_NAME_B}\n'
+    print(f'{len(exclusive_b)} accounts exclusive to file {FILE_NAME_B}')
     for acc in exclusive_b:
-        output += acc_json(acc) + '\n'
-    output += '\n'
+        print(acc_json(acc))
+    print()
 
-    output += f'{len(newer_in_a)} accounts newer in {FILE_NAME_A}\n'
+    print(f'{len(newer_in_a)} accounts newer in {FILE_NAME_A}')
     for acc_a, acc_b in newer_in_a:
-        output += '\t' + acc_json(acc_a) + '\n'
-        output += '\t' + acc_json(acc_b) + '\n'
-    output += '\n'
+        print('\t' + acc_json(acc_a))
+        print('\t' + acc_json(acc_b))
+    print()
 
-    output += f'{len(newer_in_b)} accounts newer in {FILE_NAME_B}\n'
+    print(f'{len(newer_in_b)} accounts newer in {FILE_NAME_B}')
     for acc_a, acc_b in newer_in_b:
-        output += '\t' + acc_json(acc_a) + '\n'
-        output += '\t' + acc_json(acc_b) + '\n'
-    output += '\n'
-
-    with open(OUTPUT_FILE_NAME, 'wb') as f:
-        f.write(output.encode('utf-8'))
+        print('\t' + acc_json(acc_a))
+        print('\t' + acc_json(acc_b))
+    print()
 
 
 if __name__ == '__main__':
