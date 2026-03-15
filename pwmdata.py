@@ -271,3 +271,40 @@ class Database:
     def updateMasterPassword(self, password: str):
         self.masterPassword = password
         self.save()
+
+    def importData(self, filename: str, password: str) -> tuple[int, int]:
+        """
+        Import and merge accounts from another data file.
+        - New accounts (by accountName) are added.
+        - Duplicate accounts are replaced only if the imported copy is newer.
+        Returns (added_count, updated_count).
+        Raises InvalidToken if the password is wrong.
+        """
+        with open(filename, 'rb') as f:
+            raw = f.read()
+        decrypted, _ = decrypt_file_data(raw, password)
+
+        # Build an index of current accounts for O(1) lookup
+        existing = {acc.accountName: i for i, acc in enumerate(self.accountList)}
+        added = 0
+        updated = 0
+
+        for line in decrypted.splitlines():
+            if not line.strip():
+                continue
+            imported = Account(**json.loads(line.decode('utf-8'), object_hook=decode_datetime))
+            if not imported.accountName:
+                continue
+            if imported.accountName in existing:
+                idx = existing[imported.accountName]
+                if imported.lastEdited > self.accountList[idx].lastEdited:
+                    self.accountList[idx] = imported
+                    updated += 1
+            else:
+                self.accountList.append(imported)
+                existing[imported.accountName] = len(self.accountList) - 1
+                added += 1
+
+        if added > 0 or updated > 0:
+            self.save()
+        return added, updated

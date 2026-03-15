@@ -1,3 +1,4 @@
+import os
 from getpass import getpass
 from types import FunctionType, MethodType
 from pwmdata import Database, Account, EmptyInputException
@@ -30,6 +31,7 @@ class Manager:
     TOTAL_COLUMNS = 4
     INDENT = 2
     MISC_TITLE_MIN_WIDTH = 9
+    DEFAULT_IMPORT_FILENAME = 'accounts2.data'
 
     def __init__(self, data: Database) -> None:
         self.stateStack = []
@@ -139,6 +141,7 @@ class Manager:
         st_home.addOption(Option('Search by Phone Number',  self.fo_getPhoneList))
         st_home.addOption(Option('Search by Linked Account', self.fo_getLinkedAccountsList))
         st_home.addOption(Option('Change Master Password',  self.fog_nextState(st_checkMasterPassword)))
+        st_home.addOption(Option('Import More Data',        self.fo_startImport))
 
         try:
             password = getpass("Please enter your password: ")
@@ -179,6 +182,36 @@ class Manager:
                 print('Master password updated')
             else:
                 print('Passwords do not match')
+            self.fo_home()
+        return handler
+
+    # --- Data import ---
+
+    def fo_startImport(self):
+        st = State(
+            f'Import file\n'
+            f'Default filename: {self.DEFAULT_IMPORT_FILENAME}'
+        )
+        st.addOption(Option('Filename (Enter to use default): ', self.fo_importCheckFile))
+        self.pushStack(st)
+
+    def fo_importCheckFile(self, text):
+        filename = text.strip() if text.strip() else self.DEFAULT_IMPORT_FILENAME
+        if not os.path.isfile(filename):
+            print(f'File "{filename}" not found')
+            self.popStack()
+            return
+        st = State(f'File "{filename}" found\nAuthenticate with that file\'s master password:')
+        st.addOption(Option('Password: ', self.fog_importWithPassword(filename), passwordInput=True))
+        self.pushStack(st)
+
+    def fog_importWithPassword(self, filename):
+        def handler(password):
+            try:
+                added, updated = self.data.importData(filename, password)
+                print(f'Import complete: {added} account(s) added, {updated} account(s) updated.')
+            except InvalidToken:
+                print('Authentication failed — incorrect password for that file.')
             self.fo_home()
         return handler
 
